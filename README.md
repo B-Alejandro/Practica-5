@@ -74,4 +74,4 @@ Proyecto desarrollado como parte del curso **Informática II**.
 
 **Integrantes:**  
 - Alejandro Bedoya Zuluaga  
-- Jeronimo Herrera Espinos
+-Jose Manuel Giraldo
