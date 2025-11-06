@@ -37,7 +37,7 @@ Thumbs.db
 
 # qtcreator generated files
 *.pro.user*
-
+*.pro
 *.qbs.user*
 CMakeLists.txt.user*
 
