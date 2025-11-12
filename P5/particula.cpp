@@ -40,15 +40,15 @@ void Particula::colisionarPared(double ancho, double alto) {
 
 // --- Getters ---
 int Particula::getId() const { return id; }
-Vector2D Particula::getPosicion() const { return posicion; }
-Vector2D Particula::getVelocidad() const { return velocidad; }
+Vector Particula::getPosicion() const { return posicion; }
+Vector Particula::getVelocidad() const { return velocidad; }
 double Particula::getMasa() const { return masa; }
 double Particula::getRadio() const { return radio; }
 bool Particula::estaActiva() const { return activa; }
 
 // --- Setters ---
-void Particula::setPosicion(const Vector2D& p) { posicion = p; }
-void Particula::setVelocidad(const Vector2D& v) { velocidad = v; }
+void Particula::setPosicion(const Vector& p) { posicion = p; }
+void Particula::setVelocidad(const Vector& v) { velocidad = v; }
 void Particula::setActiva(bool estado) { activa = estado; }
 
 // --- Detección de colisiones entre partículas ---

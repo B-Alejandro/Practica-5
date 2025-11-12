@@ -29,8 +29,8 @@ public:
     bool estaActiva() const;
 
     // --- Setters ---
-    void setPosicion(const Vector2D& p);
-    void setVelocidad(const Vector2D& v);
+    void setPosicion(const Vector& p);
+    void setVelocidad(const Vector& v);
     void setActiva(bool estado);
 
     // --- Funciones auxiliares ---
