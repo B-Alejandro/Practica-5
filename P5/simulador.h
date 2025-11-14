@@ -18,8 +18,11 @@ enum class TipoColision {
 
 /**
  * @brief Clase principal que gestiona toda la simulación de partículas.
- * Controla las partículas, obstáculos, detección y resolución de colisiones,
- * archivos de salida y estadísticas generales.
+ *
+ * Tipos de colisiones implementados:
+ * 1. Partículas vs Paredes: ELÁSTICAS (conserva energía)
+ * 2. Partículas vs Obstáculos: INELÁSTICAS (con coeficiente de restitución)
+ * 3. Partículas vs Partículas: COMPLETAMENTE INELÁSTICAS (fusión)
  */
 class Simulador {
 private:
@@ -58,10 +61,6 @@ public:
     Simulador(double ancho, double alto, double dt, TipoColision tipo, double coefRestitucion);
     ~Simulador();
 
-    // --- Configuración de tipo de colisión ---
-    void setTipoColision(TipoColision tipo, double coefRestitucion);
-    TipoColision getTipoColision() const;
-
     // --- Gestión de entidades ---
     void agregarParticula(double x, double y, double vx, double vy, double masa, double radio);
     void agregarObstaculo(double x, double y, double lado, double coefRestitucion);
@@ -77,13 +76,11 @@ private:
     // --- Lógica interna ---
     void actualizarPosiciones();
     void detectarYResolverColisiones();
-    void detectarColisionesParedes();
-    void detectarColisionesObstaculos();
-    void detectarColisionesEntreParticulas();
+    void detectarColisionesParedes();      // Elásticas
+    void detectarColisionesObstaculos();   // Inelásticas
+    void detectarColisionesEntreParticulas(); // Fusión
 
-    void resolverColisionPared(Particula* p);
-    void resolverColisionObstaculo(Particula* p, Obstaculo& obs);
-    void resolverColisionEntreParticulas(Particula* p1, Particula* p2);
+    void fusionarParticulas(Particula* p1, Particula* p2);
 
     // --- Archivos y registro ---
     void abrirArchivos();

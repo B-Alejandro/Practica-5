@@ -15,7 +15,8 @@ Simulador::Simulador(double ancho, double alto, double dt, TipoColision tipo, do
     ultimoNumParticulas(0), siguienteIdParticula(0),
     motorColisiones(nullptr), tipoColisionActual(tipo) {
 
-    setTipoColision(tipo, coefRestitucion);
+    // Siempre usar fusión para partículas
+    motorColisiones = new ColisionCompletamenteInelastica(siguienteIdParticula);
 }
 
 Simulador::~Simulador() {
@@ -31,42 +32,15 @@ Simulador::~Simulador() {
     cerrarArchivos();
 }
 
-void Simulador::setTipoColision(TipoColision tipo, double coefRestitucion) {
-    if (motorColisiones) {
-        delete motorColisiones;
-        motorColisiones = nullptr;
-    }
-
-    tipoColisionActual = tipo;
-
-    switch (tipo) {
-    case TipoColision::ELASTICA:
-        motorColisiones = new ColisionElastica();
-        break;
-    case TipoColision::INELASTICA:
-        motorColisiones = new ColisionInelastica(coefRestitucion);
-        break;
-    case TipoColision::COMPLETAMENTE_INELASTICA:
-        motorColisiones = new ColisionCompletamenteInelastica(siguienteIdParticula);
-        break;
-    }
-}
-
-TipoColision Simulador::getTipoColision() const {
-    return tipoColisionActual;
-}
-
 void Simulador::agregarParticula(double x, double y, double vx, double vy,
                                  double masa, double radio) {
     Particula* nueva = new Particula(siguienteIdParticula, x, y, vx, vy, masa, radio);
     particulas.push_back(nueva);
     siguienteIdParticula++;
 
-    if (tipoColisionActual == TipoColision::COMPLETAMENTE_INELASTICA) {
-        auto* motorFusion = dynamic_cast<ColisionCompletamenteInelastica*>(motorColisiones);
-        if (motorFusion) {
-            motorFusion->setSiguienteId(siguienteIdParticula);
-        }
+    auto* motorFusion = dynamic_cast<ColisionCompletamenteInelastica*>(motorColisiones);
+    if (motorFusion) {
+        motorFusion->setSiguienteId(siguienteIdParticula);
     }
 }
 
@@ -75,8 +49,9 @@ void Simulador::agregarObstaculo(double x, double y, double lado, double coefRes
 }
 
 void Simulador::configurarObstaculos(int cantidad) {
+    // Coeficiente de restitución para obstáculos (inelástica)
     double coef = 0.7;
-    double lado = 30.0;
+    double lado = 50.0;
 
     for (int i = 0; i < cantidad; ++i) {
         double x = (ancho / (cantidad + 1)) * (i + 1) - lado / 2.0;
@@ -91,27 +66,17 @@ void Simulador::iniciar() {
     abrirArchivos();
 
     cout << "===============================================" << endl;
-    cout << "             INICIO DE SIMULACION              " << endl;
+    cout << "             INICIO DE SIMULACIÓN              " << endl;
     cout << "===============================================" << endl;
-    cout << "Particulas: " << particulas.size() << endl;
-    cout << "Obstaculos: " << obstaculos.size() << endl;
+    cout << "Partículas iniciales: " << particulas.size() << endl;
+    cout << "Obstáculos: " << obstaculos.size() << endl;
     cout << "Dimensiones: " << ancho << " x " << alto << endl;
-    cout << "dt: " << dt << endl;
-
-    cout << "Tipo de colision: ";
-    switch (tipoColisionActual) {
-    case TipoColision::ELASTICA:
-        cout << "ELASTICA (e=1.0)" << endl;
-        break;
-    case TipoColision::INELASTICA:
-        cout << "INELASTICA (e="
-             << dynamic_cast<ColisionInelastica*>(motorColisiones)->getCoeficienteRestitucion()
-             << ")" << endl;
-        break;
-    case TipoColision::COMPLETAMENTE_INELASTICA:
-        cout << "COMPLETAMENTE INELASTICA (fusion)" << endl;
-        break;
-    }
+    cout << "dt: " << dt << " s" << endl;
+    cout << endl;
+    cout << "TIPOS DE COLISIÓN CONFIGURADOS:" << endl;
+    cout << "  • Partículas ↔ Paredes: ELÁSTICA (e=1.0)" << endl;
+    cout << "  • Partículas ↔ Obstáculos: INELÁSTICA (e=0.7)" << endl;
+    cout << "  • Partículas ↔ Partículas: FUSIÓN (e=0.0)" << endl;
     cout << endl;
 }
 
@@ -145,19 +110,18 @@ void Simulador::ejecutar(double tiempoFinal) {
         if (progresoActual >= progresoAnterior + 10) {
             cout << "Progreso: " << progresoActual << "% (t="
                  << fixed << setprecision(2) << tiempoActual
-                 << "s, particulas=" << contarParticulasActivas() << ")" << endl;
+                 << "s, partículas=" << contarParticulasActivas() << ")" << endl;
             progresoAnterior = progresoActual;
         }
 
-        if (tipoColisionActual == TipoColision::COMPLETAMENTE_INELASTICA) {
-            if (contarParticulasActivas() <= 1) {
-                cout << "\nSimulacion detenida: solo queda una particula." << endl;
-                break;
-            }
+        // Detener si solo queda una partícula
+        if (contarParticulasActivas() <= 1) {
+            cout << "\nSimulación detenida: solo queda una partícula." << endl;
+            break;
         }
 
         if (verificarEstancamiento()) {
-            cout << "\nAdvertencia: simulacion estancada." << endl;
+            cout << "\nAdvertencia: simulación estancada." << endl;
             break;
         }
     }
@@ -172,7 +136,7 @@ void Simulador::finalizar() {
     }
 
     cout << "===============================================" << endl;
-    cout << "              SIMULACION FINALIZADA             " << endl;
+    cout << "              SIMULACIÓN FINALIZADA             " << endl;
     cout << "===============================================" << endl;
 }
 
@@ -185,12 +149,19 @@ void Simulador::actualizarPosiciones() {
 }
 
 void Simulador::detectarYResolverColisiones() {
+    // ORDEN IMPORTANTE:
+    // 1. Colisiones con paredes (elásticas)
     detectarColisionesParedes();
+
+    // 2. Colisiones con obstáculos (inelásticas)
     detectarColisionesObstaculos();
+
+    // 3. Colisiones entre partículas (fusión)
     detectarColisionesEntreParticulas();
 }
 
 void Simulador::detectarColisionesParedes() {
+    // COLISIONES ELÁSTICAS: inversión de velocidad perpendicular
     for (Particula* p : particulas) {
         if (!p->estaActiva()) continue;
 
@@ -200,7 +171,7 @@ void Simulador::detectarColisionesParedes() {
         if (pos.getX() - r <= 0 || pos.getX() + r >= ancho ||
             pos.getY() - r <= 0 || pos.getY() + r >= alto) {
 
-            resolverColisionPared(p);
+            p->colisionarPared(ancho, alto);  // Ya implementa colisión elástica
             totalColisionesParedes++;
             registrarColision("PARED", p->getId());
         }
@@ -208,6 +179,7 @@ void Simulador::detectarColisionesParedes() {
 }
 
 void Simulador::detectarColisionesObstaculos() {
+    // COLISIONES INELÁSTICAS con coeficiente de restitución
     for (Particula* p : particulas) {
         if (!p->estaActiva()) continue;
 
@@ -215,7 +187,8 @@ void Simulador::detectarColisionesObstaculos() {
             if (obs.colisionaCon(*p)) {
                 Vector vel = p->getVelocidad();
                 if (vel.magnitud() > 0.1) {
-                    resolverColisionObstaculo(p, obs);
+                    // Usa ColisionManager que aplica coeficiente de restitución
+                    ColisionManager::colisionInelastica(*p, obs);
                     totalColisionesObstaculos++;
                     registrarColision("OBSTACULO", p->getId());
                 }
@@ -226,70 +199,52 @@ void Simulador::detectarColisionesObstaculos() {
 }
 
 void Simulador::detectarColisionesEntreParticulas() {
-    if (tipoColisionActual == TipoColision::COMPLETAMENTE_INELASTICA) {
-        int fusionesEnEstePaso = 0;
-        const int MAX_FUSIONES_POR_PASO = 1;
+    // COLISIONES COMPLETAMENTE INELÁSTICAS: fusión de partículas
+    int fusionesEnEstePaso = 0;
+    const int MAX_FUSIONES_POR_PASO = 1;  // Procesar una fusión a la vez
 
-        for (size_t i = 0; i < particulas.size() && fusionesEnEstePaso < MAX_FUSIONES_POR_PASO; i++) {
-            if (!particulas[i]->estaActiva()) continue;
+    for (size_t i = 0; i < particulas.size() && fusionesEnEstePaso < MAX_FUSIONES_POR_PASO; i++) {
+        if (!particulas[i]->estaActiva()) continue;
 
-            for (size_t j = i + 1; j < particulas.size(); j++) {
-                if (!particulas[j]->estaActiva()) continue;
+        for (size_t j = i + 1; j < particulas.size(); j++) {
+            if (!particulas[j]->estaActiva()) continue;
 
-                if (particulas[i]->colisionaCon(*particulas[j])) {
-                    resolverColisionEntreParticulas(particulas[i], particulas[j]);
-                    fusionesEnEstePaso++;
-                    break;
-                }
-            }
-        }
-    } else {
-        for (size_t i = 0; i < particulas.size(); i++) {
-            if (!particulas[i]->estaActiva()) continue;
-
-            for (size_t j = i + 1; j < particulas.size(); j++) {
-                if (!particulas[j]->estaActiva()) continue;
-
-                if (particulas[i]->colisionaCon(*particulas[j])) {
-                    motorColisiones->resolverColision(*particulas[i], *particulas[j]);
-                    totalColisionesParticulas++;
-                    registrarColision("PARTICULA", particulas[i]->getId(), particulas[j]->getId());
-                }
+            if (particulas[i]->colisionaCon(*particulas[j])) {
+                fusionarParticulas(particulas[i], particulas[j]);
+                fusionesEnEstePaso++;
+                break;
             }
         }
     }
 }
 
-void Simulador::resolverColisionPared(Particula* p) {
-    p->colisionarPared(ancho, alto);
-}
+void Simulador::fusionarParticulas(Particula* p1, Particula* p2) {
+    auto* motorFusion = dynamic_cast<ColisionCompletamenteInelastica*>(motorColisiones);
 
-void Simulador::resolverColisionObstaculo(Particula* p, Obstaculo& obs) {
-    ColisionManager::colisionInelastica(*p, obs);
-}
+    if (motorFusion) {
+        // Separar partículas antes de fusionar
+        ColisionManager::separarParticulas(*p1, *p2);
 
-void Simulador::resolverColisionEntreParticulas(Particula* p1, Particula* p2) {
-    if (tipoColisionActual == TipoColision::COMPLETAMENTE_INELASTICA) {
-        auto* motorFusion = dynamic_cast<ColisionCompletamenteInelastica*>(motorColisiones);
+        // Crear nueva partícula fusionada
+        Particula* nueva = motorFusion->fusionarParticulas(*p1, *p2);
+        siguienteIdParticula = nueva->getId() + 1;
+        motorFusion->setSiguienteId(siguienteIdParticula);
 
-        if (motorFusion) {
-            ColisionManager::separarParticulas(*p1, *p2);
+        // Desactivar partículas originales
+        p1->setActiva(false);
+        p2->setActiva(false);
 
-            Particula* nueva = motorFusion->fusionarParticulas(*p1, *p2);
-            siguienteIdParticula = nueva->getId() + 1;
-            motorFusion->setSiguienteId(siguienteIdParticula);
+        // Agregar nueva partícula
+        particulas.push_back(nueva);
 
-            p1->setActiva(false);
-            p2->setActiva(false);
-            particulas.push_back(nueva);
+        totalColisionesParticulas++;
+        registrarColision("FUSION", p1->getId(), p2->getId());
 
-            totalColisionesParticulas++;
-            registrarColision("FUSION", p1->getId(), p2->getId());
-
-            cout << "Fusion: P" << p1->getId() << " + P" << p2->getId()
-                 << " -> P" << nueva->getId()
-                 << " (t=" << fixed << setprecision(3) << tiempoActual << "s)" << endl;
-        }
+        cout << "  Fusión: P" << p1->getId() << " + P" << p2->getId()
+             << " → P" << nueva->getId()
+             << " (m=" << fixed << setprecision(2) << nueva->getMasa()
+             << ", r=" << nueva->getRadio()
+             << ", t=" << setprecision(3) << tiempoActual << "s)" << endl;
     }
 }
 
@@ -340,7 +295,7 @@ void Simulador::cerrarArchivos() {
 }
 
 void Simulador::limpiarParticulasInactivas() {
-    // No eliminar de memoria, solo marcar inactivas
+    // No eliminar de memoria, solo mantener marcadas como inactivas
 }
 
 int Simulador::contarParticulasActivas() const {
@@ -354,15 +309,18 @@ int Simulador::contarParticulasActivas() const {
 void Simulador::mostrarEstadisticas() const {
     cout << endl;
     cout << "===============================================" << endl;
-    cout << "             ESTADISTICAS DE SIMULACION         " << endl;
+    cout << "             ESTADÍSTICAS FINALES              " << endl;
     cout << "===============================================" << endl;
     cout << "Tiempo simulado: " << fixed << setprecision(2) << tiempoActual << " s" << endl;
     cout << "Pasos ejecutados: " << pasoActual << endl;
-    cout << "Particulas activas: " << contarParticulasActivas()
+    cout << "Partículas activas: " << contarParticulasActivas()
          << " / " << particulas.size() << endl;
-    cout << "Colisiones con paredes: " << totalColisionesParedes << endl;
-    cout << "Colisiones con obstaculos: " << totalColisionesObstaculos << endl;
-    cout << "Colisiones entre particulas: " << totalColisionesParticulas << endl;
+    cout << endl;
+    cout << "COLISIONES DETECTADAS:" << endl;
+    cout << "  • Con paredes (elásticas): " << totalColisionesParedes << endl;
+    cout << "  • Con obstáculos (inelásticas): " << totalColisionesObstaculos << endl;
+    cout << "  • Fusiones de partículas: " << totalColisionesParticulas << endl;
+    cout << "  • Total: " << (totalColisionesParedes + totalColisionesObstaculos + totalColisionesParticulas) << endl;
 }
 
 bool Simulador::verificarEstancamiento() const {
