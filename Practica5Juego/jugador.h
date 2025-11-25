@@ -1,13 +1,10 @@
-#ifndef JUGADOR_H
-#define JUGADOR_H
-
-#include <QGraphicsRectItem>
 #include <QKeyEvent>
+#include <QPixmap>
 
 class Juego;
 class QGraphicsScene;
 
-class Jugador : public QGraphicsRectItem
+class Jugador : public QGraphicsPixmapItem
 {
 public:
     Jugador(Juego *juego, QGraphicsScene *escena, int numeroJugador);
@@ -27,7 +24,15 @@ private:
     Juego *juegoPtr;
     QGraphicsScene *escenaPtr;
 
+    QPixmap spriteSheet;
+    int frameAncho;
+    int frameAlto;
+    int framesPoraAngulo;
+
     void lanzar();
+    void cargarAnimacion();
+    void actualizarFrame();
+    int calcularFrameDelAngulo();
 };
 
 #endif // JUGADOR_H
