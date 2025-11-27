@@ -1,3 +1,7 @@
+#ifndef JUGADOR_H
+#define JUGADOR_H
+
+#include <QGraphicsPixmapItem>
 #include <QKeyEvent>
 #include <QPixmap>
 
