@@ -30,7 +30,6 @@ private slots:
 private:
     int calcularDano() const;
     void detenerYDestruir();
-    void procesarRebote();
 
     double xInicial;
     double yInicial;
@@ -38,12 +37,9 @@ private:
     double angRad;
     double g;
     double tiempo;
-    double velocidadX;
-    double velocidadY;
     bool impacto;
     bool destruyendo;
     bool eventoEmitido;
-    int rebotesRestantes;
 
     QTimer *timer;
 };

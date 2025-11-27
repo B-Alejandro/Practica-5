@@ -195,6 +195,6 @@ void Jugador::resetear()
     qDebug() << ">>> Reseteando jugador" << numJugador;
     angulo = 45.0;
     velocidad = 50.0;
-    setPos(numJugador == 1 ? 50 : 670, 520);
+    setPos(numJugador == 10 ? 500 : 670, 520);
     actualizarFrame();
 }
