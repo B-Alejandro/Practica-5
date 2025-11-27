@@ -118,63 +118,54 @@ Juego::Juego(QWidget *parent)
 
 void Juego::crearCasa()
 {
-    qDebug() << ">>> Creando casa con componentes de vida diferenciada";
-
-    // Paredes laterales de la casa (5 hits cada una)
-    Obstaculo *paredIzq = new Obstaculo(5);
+    // Paredes laterales de la casa
+    Obstaculo *paredIzq = new Obstaculo(80);
     paredIzq->setRect(0, 0, 20, 150);
-    paredIzq->setPos(500, 380);
+    paredIzq->setPos(500, 400);
     paredIzq->setBrush(QBrush(QColor(139, 69, 19)));
     escena->addItem(paredIzq);
     obstaculosCasa.append(paredIzq);
 
-    Obstaculo *paredDer = new Obstaculo(5);
+    Obstaculo *paredDer = new Obstaculo(80);
     paredDer->setRect(0, 0, 20, 150);
-    paredDer->setPos(650, 380);
+    paredDer->setPos(650, 400);
     paredDer->setBrush(QBrush(QColor(139, 69, 19)));
     escena->addItem(paredDer);
     obstaculosCasa.append(paredDer);
 
-    // Techo de la casa (10 hits cada pieza)
-    Obstaculo *techoIzq = new Obstaculo(10);
-    techoIzq->setRect(0, 0, 85, 20);
-    techoIzq->setPos(500, 375);
+    // Techo de la casa
+    Obstaculo *techoIzq = new Obstaculo(60);
+    techoIzq->setRect(0, 0, 80, 15);
+    techoIzq->setPos(490, 385);
+    techoIzq->setRotation(-30);
     techoIzq->setBrush(QBrush(QColor(178, 34, 34)));
     escena->addItem(techoIzq);
     obstaculosCasa.append(techoIzq);
 
-    Obstaculo *techoDer = new Obstaculo(10);
-    techoDer->setRect(0, 0, 85, 20);
-    techoDer->setPos(585, 375);
+    Obstaculo *techoDer = new Obstaculo(60);
+    techoDer->setRect(0, 0, 80, 15);
+    techoDer->setPos(590, 385);
+    techoDer->setRotation(30);
     techoDer->setBrush(QBrush(QColor(178, 34, 34)));
     escena->addItem(techoDer);
     obstaculosCasa.append(techoDer);
 
-    // Piso frontal de la casa (1 hit)
-    Obstaculo *pisoFrontal = new Obstaculo(1);
-    pisoFrontal->setRect(0, 0, 170, 20);
-    pisoFrontal->setPos(500, 530);
-    pisoFrontal->setBrush(QBrush(QColor(139, 69, 19)));
-    escena->addItem(pisoFrontal);
-    obstaculosCasa.append(pisoFrontal);
-
-    // Puerta frontal (1 hit)
-    Obstaculo *puerta = new Obstaculo(1);
-    puerta->setRect(0, 0, 50, 80);
-    puerta->setPos(560, 450);
+    // Puerta frontal
+    Obstaculo *puerta = new Obstaculo(50);
+    puerta->setRect(0, 0, 40, 80);
+    puerta->setPos(565, 470);
     puerta->setBrush(QBrush(QColor(101, 67, 33)));
     escena->addItem(puerta);
     obstaculosCasa.append(puerta);
 
-    // NPC dentro de la casa (1 hit)
-    obstaculoNPC = new Obstaculo(1);
+    // NPC dentro de la casa
+    obstaculoNPC = new Obstaculo(100);
     obstaculoNPC->setRect(0, 0, 30, 50);
-    obstaculoNPC->setPos(570, 400);
+    obstaculoNPC->setPos(570, 500);
     obstaculoNPC->setBrush(QBrush(QColor(255, 215, 0)));
     escena->addItem(obstaculoNPC);
-
-    qDebug() << ">>> Casa creada: 2 paredes (5), 2 techos (10), 1 piso (1), 1 puerta (1), 1 NPC (1)";
 }
+
 QGraphicsScene* Juego::obtenerEscena() const
 {
     return escena;
@@ -238,17 +229,6 @@ void Juego::registrarImpacto(bool acerto)
             fallosJ1++;
             if (labelFallosJ1)
                 labelFallosJ1->setText(QString("Fallos J1: %1/3").arg(fallosJ1));
-
-            // Si llega a 3 fallos, cambiar de turno automáticamente
-            if (fallosJ1 >= 3)
-            {
-                qDebug() << ">>> Jugador 1 llegó a 3 fallos, cambiando turno";
-                QTimer::singleShot(500, this, [this]() {
-                    cambiarTurno();
-                    turnoEnProceso = false;
-                });
-                return;
-            }
         }
     }
     else
@@ -264,17 +244,6 @@ void Juego::registrarImpacto(bool acerto)
             fallosJ2++;
             if (labelFallosJ2)
                 labelFallosJ2->setText(QString("Fallos J2: %1/3").arg(fallosJ2));
-
-            // Si llega a 3 fallos, cambiar de turno automáticamente
-            if (fallosJ2 >= 3)
-            {
-                qDebug() << ">>> Jugador 2 llegó a 3 fallos, cambiando turno";
-                QTimer::singleShot(500, this, [this]() {
-                    cambiarTurno();
-                    turnoEnProceso = false;
-                });
-                return;
-            }
         }
     }
 
@@ -378,11 +347,12 @@ void Juego::reiniciarJuego()
         return;
     }
 
-    qDebug() << ">>> Recolectando proyectiles...";
-    // Hacer una copia de la lista ANTES de iterar
+    // Limpiar todos los proyectiles de manera segura
     QList<QGraphicsItem*> todosLosItems = escena->items();
     QList<Proyectil*> proyectiles;
 
+    qDebug() << ">>> Recolectando proyectiles...";
+    // Primero recolectar todos los proyectiles
     for (QGraphicsItem *item : todosLosItems)
     {
         if (!item)
@@ -396,10 +366,9 @@ void Juego::reiniciarJuego()
     }
 
     qDebug() << ">>> Eliminando" << proyectiles.size() << "proyectiles...";
-    // Eliminar proyectiles de forma segura
-    for (int i = proyectiles.size() - 1; i >= 0; --i)
+    // Luego eliminarlos de forma segura
+    for (Proyectil *p : proyectiles)
     {
-        Proyectil *p = proyectiles[i];
         if (p && p->scene() == escena)
         {
             escena->removeItem(p);
@@ -408,10 +377,9 @@ void Juego::reiniciarJuego()
     }
 
     qDebug() << ">>> Eliminando obstáculos...";
-    // Limpiar obstáculos viejos - iterar en reverso para evitar problemas
-    for (int i = obstaculosCasa.size() - 1; i >= 0; --i)
+    // Limpiar obstáculos viejos
+    for (Obstaculo *obs : obstaculosCasa)
     {
-        Obstaculo *obs = obstaculosCasa[i];
         if (obs && obs->scene() == escena)
         {
             escena->removeItem(obs);
