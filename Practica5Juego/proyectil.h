@@ -16,6 +16,7 @@ public:
               double y0,
               double velocidad,
               double angulo,
+              int jugadorPropietario,
               double gravedad = 98.0);
 
     ~Proyectil();
@@ -23,6 +24,7 @@ public:
 signals:
     void impactoDetectado(bool acerto);
     void proyectilFinalizado();
+    void jugadorGolpeado(int jugadorNumero);
 
 private slots:
     void actualizar();
@@ -44,6 +46,7 @@ private:
     bool destruyendo;
     bool eventoEmitido;
     int rebotesRestantes;
+    int jugadorOwner;
 
     QTimer *timer;
 };

@@ -8,6 +8,7 @@
 #include <QScreen>
 #include <QGuiApplication>
 #include <QTimer>
+#include <QPainter>
 
 Juego::Juego(QWidget *parent)
     : QMainWindow(parent)
@@ -15,13 +16,10 @@ Juego::Juego(QWidget *parent)
     , jugadorActual(1)
     , puntajeJ1(0)
     , puntajeJ2(0)
-    , fallosJ1(0)
-    , fallosJ2(0)
     , turnoEnProceso(false)
 {
     qDebug() << "=== JUEGO CONSTRUCTOR INICIADO ===";
 
-    // 1. Configurar la ventana principal y redimensionar según la pantalla
     setWindowTitle("Juego de Artilleria - 2 Jugadores");
 
     QScreen *screen = QGuiApplication::primaryScreen();
@@ -42,15 +40,13 @@ Juego::Juego(QWidget *parent)
         int y = availableGeometry.y() + (availableGeometry.height() - newHeight) / 2;
         move(x, y);
     } else {
-        qDebug() << "No se pudo obtener la pantalla principal. Usando tamaño por defecto.";
         resize(1000, 650);
     }
 
-    // 2. Crear widget central
     widgetCentral = new QWidget(this);
     setCentralWidget(widgetCentral);
 
-    // 3. Crear el panel de información PRIMERO para calcular su ancho
+    // Crear panel de información
     qDebug() << "Creando panel de información...";
     labelJugador = new QLabel("Turno: Jugador 1");
     labelJugador->setStyleSheet(
@@ -89,11 +85,11 @@ Juego::Juego(QWidget *parent)
         "padding: 5px;"
         );
 
-    labelFallosJ1 = new QLabel("❌ Fallos: 0/3");
-    labelFallosJ1->setStyleSheet("font-size: 12px; color: #e67e22;");
+    labelVidasJ1 = new QLabel("❤️ Vidas: 5");
+    labelVidasJ1->setStyleSheet("font-size: 12px; color: #e74c3c; font-weight: bold;");
 
-    labelFallosJ2 = new QLabel("❌ Fallos: 0/3");
-    labelFallosJ2->setStyleSheet("font-size: 12px; color: #e67e22;");
+    labelVidasJ2 = new QLabel("❤️ Vidas: 5");
+    labelVidasJ2->setStyleSheet("font-size: 12px; color: #e74c3c; font-weight: bold;");
 
     btnReiniciar = new QPushButton("🔄 Reiniciar");
     connect(btnReiniciar, &QPushButton::clicked, this, &Juego::onReiniciar);
@@ -105,7 +101,6 @@ Juego::Juego(QWidget *parent)
     panel->addWidget(labelJugador);
     panel->addSpacing(15);
 
-    // Sección de controles
     QLabel *labelControles = new QLabel("⚙️ CONTROLES");
     labelControles->setStyleSheet(
         "font-size: 12px; "
@@ -118,8 +113,7 @@ Juego::Juego(QWidget *parent)
     panel->addWidget(labelVelocidad);
     panel->addSpacing(15);
 
-    // Sección de puntajes
-    QLabel *labelPuntajes = new QLabel("🏆 PUNTAJES");
+    QLabel *labelPuntajes = new QLabel("🏆 PUNTAJES Y VIDAS");
     labelPuntajes->setStyleSheet(
         "font-size: 12px; "
         "color: #95a5a6; "
@@ -128,15 +122,14 @@ Juego::Juego(QWidget *parent)
         );
     panel->addWidget(labelPuntajes);
     panel->addWidget(labelPuntajeJ1);
-    panel->addWidget(labelFallosJ1);
+    panel->addWidget(labelVidasJ1);
     panel->addSpacing(8);
     panel->addWidget(labelPuntajeJ2);
-    panel->addWidget(labelFallosJ2);
+    panel->addWidget(labelVidasJ2);
     panel->addSpacing(20);
     panel->addWidget(btnReiniciar);
     panel->addStretch();
 
-    // Crear un widget contenedor para el panel con ancho fijo y estilo mejorado
     QWidget *panelWidget = new QWidget();
     panelWidget->setLayout(panel);
     panelWidget->setFixedWidth(200);
@@ -170,14 +163,15 @@ Juego::Juego(QWidget *parent)
         "}"
         );
 
-    // 4. Calcular el tamaño de la escena basado en el tamaño de la ventana
+    // Calcular tamaño de la escena
     int anchoPanel = 180;
-    int anchoEscena = width() - anchoPanel - 20; // 20 para márgenes
-    int altoEscena = height() - 40; // 40 para márgenes superior e inferior
+    int anchoEscena = width() - anchoPanel - 20;
+    int altoEscena = height() - 40;
 
     qDebug() << "Creando escena con tamaño:" << anchoEscena << "x" << altoEscena;
     escena = new QGraphicsScene(0, 0, anchoEscena, altoEscena, this);
-    escena->setBackgroundBrush(QBrush(QColor(135, 206, 235)));
+    // MODIFICACIÓN: Usar QPixmap con la ruta del recurso
+    escena->setBackgroundBrush(QBrush(QPixmap(":/Recursos/Fondos/Background.jpg")));
 
     qDebug() << "Creando vista...";
     vista = new QGraphicsView(escena, widgetCentral);
@@ -185,30 +179,23 @@ Juego::Juego(QWidget *parent)
     vista->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
     vista->setVerticalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
 
-    // Calcular posición del suelo (90% de la altura de la escena)
     sueloY = altoEscena * 0.9;
     alturaSuelo = altoEscena - sueloY;
 
     qDebug() << "Creando jugadores...";
-    // Crear jugadores posicionados sobre el suelo (no dentro del suelo)
-    qreal alturaJugador = 30; // Altura aproximada del jugador
 
-    qDebug() << "Creando jugador 1...";
+    qDebug() << "Creando jugador 1 (derecha)...";
     jugador1 = new Jugador(this, escena, 1);
-    jugador1->setPos(50, sueloY - alturaJugador); // Restar la altura para que esté SOBRE el suelo
     escena->addItem(jugador1);
 
-    qDebug() << "Creando jugador 2...";
+    qDebug() << "Creando jugador 2 (izquierda)...";
     jugador2 = new Jugador(this, escena, 2);
-    jugador2->setPos(50, sueloY - alturaJugador); // Restar la altura para que esté SOBRE el suelo
-    jugador2->setVisible(false);
     escena->addItem(jugador2);
 
     jugadorActivo = jugador1;
     jugador1->setFocus();
 
     qDebug() << "Creando suelo...";
-    // Dibujar suelo que ocupa todo el ancho de la escena
     QGraphicsRectItem *suelo = new QGraphicsRectItem(0, sueloY, anchoEscena, alturaSuelo);
     suelo->setBrush(QBrush(QColor(101, 67, 33)));
     escena->addItem(suelo);
@@ -216,8 +203,10 @@ Juego::Juego(QWidget *parent)
     qDebug() << "Creando casa...";
     crearCasa();
 
+    qDebug() << "Creando corazones...";
+    crearCorazones();
+
     qDebug() << "Configurando layout...";
-    // Layout general sin factores de estiramiento (el panel tiene ancho fijo)
     QHBoxLayout *layoutGeneral = new QHBoxLayout(widgetCentral);
     layoutGeneral->setContentsMargins(0, 0, 0, 0);
     layoutGeneral->setSpacing(0);
@@ -233,21 +222,99 @@ Juego::Juego(QWidget *parent)
     qDebug() << "=== JUEGO CONSTRUCTOR COMPLETADO ===";
 }
 
+void Juego::crearCorazones()
+{
+    qDebug() << ">>> Creando corazones visuales";
+
+    // Crear pixmap de corazón más grande con borde negro
+    QPixmap corazon(40, 40);
+    corazon.fill(Qt::transparent);
+
+    QPainter painter(&corazon);
+    painter.setRenderHint(QPainter::Antialiasing);
+
+    // Dibujar forma de corazón
+    QPainterPath path;
+    path.moveTo(20, 35);
+
+    // Lado izquierdo del corazón
+    path.cubicTo(5, 25, 5, 15, 10, 10);
+    path.cubicTo(15, 5, 20, 10, 20, 15);
+
+    // Lado derecho del corazón
+    path.cubicTo(20, 10, 25, 5, 30, 10);
+    path.cubicTo(35, 15, 35, 25, 20, 35);
+
+    // Rellenar con rojo
+    painter.setBrush(QBrush(QColor(231, 76, 60)));
+    painter.setPen(Qt::NoPen);
+    painter.drawPath(path);
+
+    // Dibujar borde negro
+    painter.setBrush(Qt::NoBrush);
+    painter.setPen(QPen(Qt::black, 3));
+    painter.drawPath(path);
+
+    painter.end();
+
+    // Corazones para Jugador 1 (arriba a la derecha)
+    for (int i = 0; i < 5; i++) {
+        QGraphicsPixmapItem *corazonItem = new QGraphicsPixmapItem(corazon);
+        corazonItem->setPos(escena->width() - 240 + (i * 45), 10);
+        corazonItem->setZValue(100);
+        escena->addItem(corazonItem);
+        corazonesJ1.append(corazonItem);
+    }
+
+    // Corazones para Jugador 2 (arriba a la izquierda)
+    for (int i = 0; i < 5; i++) {
+        QGraphicsPixmapItem *corazonItem = new QGraphicsPixmapItem(corazon);
+        corazonItem->setPos(10 + (i * 45), 10);
+        corazonItem->setZValue(100);
+        escena->addItem(corazonItem);
+        corazonesJ2.append(corazonItem);
+    }
+
+    qDebug() << ">>> Corazones creados";
+}
+
+void Juego::actualizarCorazones()
+{
+    // Actualizar corazones de Jugador 1
+    int vidasJ1 = jugador1 ? jugador1->getVidas() : 0;
+    for (int i = 0; i < corazonesJ1.size(); i++) {
+        if (i < vidasJ1) {
+            corazonesJ1[i]->setOpacity(1.0);
+        } else {
+            corazonesJ1[i]->setOpacity(0.2);
+        }
+    }
+
+    // Actualizar corazones de Jugador 2
+    int vidasJ2 = jugador2 ? jugador2->getVidas() : 0;
+    for (int i = 0; i < corazonesJ2.size(); i++) {
+        if (i < vidasJ2) {
+            corazonesJ2[i]->setOpacity(1.0);
+        } else {
+            corazonesJ2[i]->setOpacity(0.2);
+        }
+    }
+
+    // Actualizar labels
+    if (labelVidasJ1) labelVidasJ1->setText(QString("❤️ Vidas: %1").arg(vidasJ1));
+    if (labelVidasJ2) labelVidasJ2->setText(QString("❤️ Vidas: %1").arg(vidasJ2));
+}
+
 void Juego::crearCasa()
 {
     qDebug() << ">>> Creando casa con componentes de vida diferenciada";
 
-    // Calcular posiciones relativas al tamaño de la escena
     qreal anchoEscena = escena->width();
-    qreal altoEscena = escena->height();
-
-    // La casa estará en el 65% del ancho de la escena
-    qreal casaX = anchoEscena * 0.65;
+    qreal casaX = anchoEscena * 0.5 - 85;
     qreal casaAncho = 170;
     qreal casaAlto = 150;
     qreal casaY = sueloY - casaAlto;
 
-    // Paredes laterales de la casa (5 hits cada una)
     Obstaculo *paredIzq = new Obstaculo(5);
     paredIzq->setRect(0, 0, 20, casaAlto);
     paredIzq->setPos(casaX, casaY);
@@ -262,7 +329,6 @@ void Juego::crearCasa()
     escena->addItem(paredDer);
     obstaculosCasa.append(paredDer);
 
-    // Techo de la casa (10 hits cada pieza)
     Obstaculo *techoIzq = new Obstaculo(10);
     techoIzq->setRect(0, 0, 85, 20);
     techoIzq->setPos(casaX, casaY - 5);
@@ -277,7 +343,6 @@ void Juego::crearCasa()
     escena->addItem(techoDer);
     obstaculosCasa.append(techoDer);
 
-    // Piso frontal de la casa (1 hit)
     Obstaculo *pisoFrontal = new Obstaculo(1);
     pisoFrontal->setRect(0, 0, casaAncho, 20);
     pisoFrontal->setPos(casaX, sueloY - 20);
@@ -285,7 +350,6 @@ void Juego::crearCasa()
     escena->addItem(pisoFrontal);
     obstaculosCasa.append(pisoFrontal);
 
-    // Puerta frontal (1 hit)
     Obstaculo *puerta = new Obstaculo(1);
     puerta->setRect(0, 0, 50, 80);
     puerta->setPos(casaX + 60, sueloY - 80);
@@ -293,14 +357,13 @@ void Juego::crearCasa()
     escena->addItem(puerta);
     obstaculosCasa.append(puerta);
 
-    // NPC dentro de la casa (1 hit)
     obstaculoNPC = new Obstaculo(1);
     obstaculoNPC->setRect(0, 0, 30, 50);
     obstaculoNPC->setPos(casaX + 70, casaY + 20);
     obstaculoNPC->setBrush(QBrush(QColor(255, 215, 0)));
     escena->addItem(obstaculoNPC);
 
-    qDebug() << ">>> Casa creada: 2 paredes (5), 2 techos (10), 1 piso (1), 1 puerta (1), 1 NPC (1)";
+    qDebug() << ">>> Casa creada";
 }
 
 QGraphicsScene* Juego::obtenerEscena() const
@@ -319,6 +382,25 @@ void Juego::actualizarPanel(double angulo, double velocidad)
     {
         labelAngulo->setText(QString("Angulo: %1°").arg(angulo, 0, 'f', 1));
         labelVelocidad->setText(QString("Velocidad: %1").arg(velocidad, 0, 'f', 1));
+    }
+}
+
+void Juego::onJugadorGolpeado(int jugadorNumero)
+{
+    qDebug() << ">>> Jugador" << jugadorNumero << "fue golpeado!";
+
+    // Determinar qué jugador fue golpeado
+    Jugador *jugadorGolpeado = (jugadorNumero == 1) ? jugador1 : jugador2;
+
+    if (jugadorGolpeado) {
+        jugadorGolpeado->perderVida();
+        actualizarCorazones();
+
+        // Verificar si el jugador perdió todas las vidas
+        if (jugadorGolpeado->getVidas() <= 0) {
+            qDebug() << ">>> Jugador" << jugadorNumero << "perdió todas las vidas!";
+            verificarFinJuego();
+        }
     }
 }
 
@@ -365,22 +447,6 @@ void Juego::registrarImpacto(bool acerto)
             if (labelPuntajeJ1)
                 labelPuntajeJ1->setText(QString("🎮 Jugador 1: %1 pts").arg(puntajeJ1));
         }
-        else
-        {
-            fallosJ1++;
-            if (labelFallosJ1)
-                labelFallosJ1->setText(QString("❌ Fallos: %1/3").arg(fallosJ1));
-
-            if (fallosJ1 >= 3)
-            {
-                qDebug() << ">>> Jugador 1 llegó a 3 fallos, cambiando turno";
-                QTimer::singleShot(500, this, [this]() {
-                    cambiarTurno();
-                    turnoEnProceso = false;
-                });
-                return;
-            }
-        }
     }
     else
     {
@@ -390,26 +456,12 @@ void Juego::registrarImpacto(bool acerto)
             if (labelPuntajeJ2)
                 labelPuntajeJ2->setText(QString("🎮 Jugador 2: %1 pts").arg(puntajeJ2));
         }
-        else
-        {
-            fallosJ2++;
-            if (labelFallosJ2)
-                labelFallosJ2->setText(QString("❌ Fallos: %1/3").arg(fallosJ2));
-
-            if (fallosJ2 >= 3)
-            {
-                qDebug() << ">>> Jugador 2 llegó a 3 fallos, cambiando turno";
-                QTimer::singleShot(500, this, [this]() {
-                    cambiarTurno();
-                    turnoEnProceso = false;
-                });
-                return;
-            }
-        }
     }
 
     verificarFinJuego();
 }
+
+// En la función cambiarTurno(), busca estas líneas y elimínalas:
 
 void Juego::cambiarTurno()
 {
@@ -424,8 +476,7 @@ void Juego::cambiarTurno()
     if (jugadorActual == 1)
     {
         jugadorActual = 2;
-        jugador1->setVisible(false);
-        jugador2->setVisible(true);
+        // ELIMINAR ESTA LÍNEA: if (jugador1) jugador1->borrarTrayectoria();
         jugadorActivo = jugador2;
         jugador2->setFocus();
         if (labelJugador)
@@ -434,8 +485,7 @@ void Juego::cambiarTurno()
     else
     {
         jugadorActual = 1;
-        jugador2->setVisible(false);
-        jugador1->setVisible(true);
+        // ELIMINAR ESTA LÍNEA: if (jugador2) jugador2->borrarTrayectoria();
         jugadorActivo = jugador1;
         jugador1->setFocus();
         if (labelJugador)
@@ -443,12 +493,25 @@ void Juego::cambiarTurno()
     }
 
     if (jugadorActivo)
+    {
         actualizarPanel(jugadorActivo->getAngulo(), jugadorActivo->getVelocidad());
+        // ELIMINAR ESTA LÍNEA: jugadorActivo->dibujarTrayectoria();
+    }
 }
+
+// Resumen de cambios:
+// 1. Eliminar: if (jugador1) jugador1->borrarTrayectoria();
+// 2. Eliminar: if (jugador2) jugador2->borrarTrayectoria();
+// 3. Eliminar: jugadorActivo->dibujarTrayectoria();
+// 4. Cambiar: actualizarPanel(45, 50); por actualizarPanel(45, 20);
 
 void Juego::verificarFinJuego()
 {
-    if (fallosJ1 >= 3 || fallosJ2 >= 3 || (obstaculoNPC && obstaculoNPC->obtenerVida() <= 0))
+    bool j1SinVidas = jugador1 && jugador1->getVidas() <= 0;
+    bool j2SinVidas = jugador2 && jugador2->getVidas() <= 0;
+    bool npcDestruido = obstaculoNPC && obstaculoNPC->obtenerVida() <= 0;
+
+    if (j1SinVidas || j2SinVidas || npcDestruido)
     {
         qDebug() << ">>> Fin del juego detectado";
         mostrarGanador();
@@ -459,34 +522,41 @@ void Juego::mostrarGanador()
 {
     QString mensaje;
 
-    if (fallosJ1 >= 3 && fallosJ2 >= 3)
+    bool j1SinVidas = jugador1 && jugador1->getVidas() <= 0;
+    bool j2SinVidas = jugador2 && jugador2->getVidas() <= 0;
+    bool npcDestruido = obstaculoNPC && obstaculoNPC->obtenerVida() <= 0;
+
+    if (j1SinVidas && j2SinVidas)
     {
-        mensaje = "¡Empate! Ambos jugadores fallaron 3 veces.";
+        mensaje = "¡Empate! Ambos jugadores perdieron todas sus vidas.";
     }
-    else if (fallosJ1 >= 3)
+    else if (j1SinVidas)
     {
-        mensaje = QString("¡Jugador 2 gana!\nJugador 1 fallo 3 veces.\nPuntaje final:\nJugador 1: %1\nJugador 2: %2")
+        mensaje = QString("¡Jugador 2 gana!\nJugador 1 perdió todas sus vidas.\nPuntaje final:\nJugador 1: %1\nJugador 2: %2")
                       .arg(puntajeJ1).arg(puntajeJ2);
     }
-    else if (fallosJ2 >= 3)
+    else if (j2SinVidas)
     {
-        mensaje = QString("¡Jugador 1 gana!\nJugador 2 fallo 3 veces.\nPuntaje final:\nJugador 1: %1\nJugador 2: %2")
+        mensaje = QString("¡Jugador 1 gana!\nJugador 2 perdió todas sus vidas.\nPuntaje final:\nJugador 1: %1\nJugador 2: %2")
                       .arg(puntajeJ1).arg(puntajeJ2);
     }
-    else if (puntajeJ1 > puntajeJ2)
+    else if (npcDestruido)
     {
-        mensaje = QString("¡Jugador 1 gana!\n¡El NPC fue derrotado!\nPuntaje final:\nJugador 1: %1\nJugador 2: %2")
-                      .arg(puntajeJ1).arg(puntajeJ2);
-    }
-    else if (puntajeJ2 > puntajeJ1)
-    {
-        mensaje = QString("¡Jugador 2 gana!\n¡El NPC fue derrotado!\nPuntaje final:\nJugador 1: %1\nJugador 2: %2")
-                      .arg(puntajeJ1).arg(puntajeJ2);
-    }
-    else
-    {
-        mensaje = QString("¡Empate!\n¡El NPC fue derrotado!\nPuntaje final: %1 - %1")
-                      .arg(puntajeJ1);
+        if (puntajeJ1 > puntajeJ2)
+        {
+            mensaje = QString("¡Jugador 1 gana!\n¡El NPC fue derrotado!\nPuntaje final:\nJugador 1: %1\nJugador 2: %2")
+                          .arg(puntajeJ1).arg(puntajeJ2);
+        }
+        else if (puntajeJ2 > puntajeJ1)
+        {
+            mensaje = QString("¡Jugador 2 gana!\n¡El NPC fue derrotado!\nPuntaje final:\nJugador 1: %1\nJugador 2: %2")
+                          .arg(puntajeJ1).arg(puntajeJ2);
+        }
+        else
+        {
+            mensaje = QString("¡Empate!\n¡El NPC fue derrotado!\nPuntaje final: %1 - %1")
+                          .arg(puntajeJ1);
+        }
     }
 
     QMessageBox::information(this, "Fin del Juego", mensaje);
@@ -558,15 +628,11 @@ void Juego::reiniciarJuego()
     qDebug() << ">>> Reiniciando valores...";
     puntajeJ1 = 0;
     puntajeJ2 = 0;
-    fallosJ1 = 0;
-    fallosJ2 = 0;
     jugadorActual = 1;
     turnoEnProceso = false;
 
-    if (labelPuntajeJ1) labelPuntajeJ1->setText("Jugador 1: 0 puntos");
-    if (labelPuntajeJ2) labelPuntajeJ2->setText("Jugador 2: 0 puntos");
-    if (labelFallosJ1) labelFallosJ1->setText("Fallos J1: 0/3");
-    if (labelFallosJ2) labelFallosJ2->setText("Fallos J2: 0/3");
+    if (labelPuntajeJ1) labelPuntajeJ1->setText("🎮 Jugador 1: 0 pts");
+    if (labelPuntajeJ2) labelPuntajeJ2->setText("🎮 Jugador 2: 0 pts");
     if (labelJugador) labelJugador->setText("Turno: Jugador 1");
 
     qDebug() << ">>> Recreando casa...";
@@ -575,12 +641,11 @@ void Juego::reiniciarJuego()
     qDebug() << ">>> Reseteando jugadores...";
     if (jugador1) jugador1->resetear();
     if (jugador2) jugador2->resetear();
-    if (jugador1) jugador1->setVisible(true);
-    if (jugador2) jugador2->setVisible(false);
     jugadorActivo = jugador1;
     if (jugador1) jugador1->setFocus();
 
     actualizarPanel(45, 50);
+    actualizarCorazones();
 
     qDebug() << ">>> reiniciarJuego completado";
 }

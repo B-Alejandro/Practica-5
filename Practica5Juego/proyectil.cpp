@@ -1,11 +1,12 @@
 #include "proyectil.h"
 #include "obstaculo.h"
+#include "jugador.h"
 #include <QtMath>
 #include <QGraphicsScene>
 #include <QBrush>
 #include <QDebug>
 
-Proyectil::Proyectil(double x0, double y0, double velocidad, double angulo, double gravedad)
+Proyectil::Proyectil(double x0, double y0, double velocidad, double angulo, int jugadorPropietario, double gravedad)
     : QObject()
     , QGraphicsEllipseItem(-5, -5, 10, 10)
     , rebotesRestantes(3)
@@ -20,12 +21,13 @@ Proyectil::Proyectil(double x0, double y0, double velocidad, double angulo, doub
     impacto = false;
     destruyendo = false;
     eventoEmitido = false;
+    jugadorOwner = jugadorPropietario;
 
     angRad = qDegreesToRadians(angulo);
 
-    // Calcular velocidades iniciales basadas en v0 y ángulo
+    // Calcular velocidades iniciales
     velocidadX = v0 * qCos(angRad);
-    velocidadY = v0 * qSin(angRad);
+    velocidadY = -v0 * qSin(angRad); // Negativo porque Y crece hacia abajo
 
     setBrush(QBrush(Qt::black));
     setPos(xInicial, yInicial);
@@ -53,7 +55,6 @@ void Proyectil::procesarRebote()
 
     rebotesRestantes--;
 
-    // El segundo rebote (rebotesRestantes == 1) se cuenta como fallo
     if (rebotesRestantes == 1)
     {
         qDebug() << ">>> Segundo rebote detectado - Contando como fallo";
@@ -65,13 +66,9 @@ void Proyectil::procesarRebote()
         return;
     }
 
-    // Invertir velocidad Y (rebote vertical) con pérdida de energía
     velocidadY = -velocidadY * 0.7;
-
-    // Reducir velocidad X por fricción
     velocidadX *= 0.85;
 
-    // Si no hay más rebotes, detener
     if (rebotesRestantes <= 0)
     {
         qDebug() << ">>> Sin rebotes restantes, deteniendo";
@@ -102,7 +99,6 @@ void Proyectil::detenerYDestruir()
             timer->stop();
     }
 
-    // Emitir señal de finalización
     if (!eventoEmitido)
     {
         qDebug() << ">>> Emitiendo proyectilFinalizado";
@@ -110,7 +106,6 @@ void Proyectil::detenerYDestruir()
         emit proyectilFinalizado();
     }
 
-    // Programar eliminación
     qDebug() << ">>> Programando eliminación del proyectil";
     QTimer::singleShot(0, this, [this]() {
         qDebug() << ">>> Lambda de eliminación ejecutándose";
@@ -140,21 +135,20 @@ void Proyectil::actualizar()
 
     tiempo += 0.016;
 
-    // Aplicar gravedad a la velocidad Y
     velocidadY += g * 0.016;
 
-    // Calcular nueva posición
     double x = pos().x() + velocidadX;
     double y = pos().y() + velocidadY;
 
     double anchoEscena = escena->width();
     double altoEscena = escena->height();
+    double sueloY = altoEscena * 0.9; // Mismo cálculo que en Juego
 
-    // REBOTE EN SUELO (Y = 550)
-    if (y >= 550 && velocidadY > 0)
+    // REBOTE EN SUELO - Corregido para usar la posición correcta del suelo
+    if (y >= sueloY - 5 && velocidadY > 0)
     {
-        qDebug() << ">>> Rebote en suelo detectado";
-        setPos(x, 550);
+        qDebug() << ">>> Rebote en suelo detectado en Y:" << y << "SueloY:" << sueloY;
+        setPos(x, sueloY - 5);
         procesarRebote();
         return;
     }
@@ -183,7 +177,6 @@ void Proyectil::actualizar()
 
     setPos(x, y);
 
-    // Verificar si sale de la escena
     if (x > anchoEscena + 100 || y > altoEscena + 100 || x < -100 || y < -100)
     {
         qDebug() << ">>> Proyectil fuera de escena en pos:" << x << y;
@@ -195,7 +188,7 @@ void Proyectil::actualizar()
         return;
     }
 
-    // Detección de colisión con obstáculos
+    // Detección de colisión
     QList<QGraphicsItem*> colisiones = collidingItems();
 
     for (QGraphicsItem *item : colisiones)
@@ -203,6 +196,40 @@ void Proyectil::actualizar()
         if (!item)
             continue;
 
+        // Verificar colisión con jugadores
+        Jugador *jugador = dynamic_cast<Jugador*>(item);
+        if (jugador && !impacto)
+        {
+            qDebug() << ">>> Colisión detectada con jugador";
+            impacto = true;
+
+            // Determinar qué jugador fue golpeado comparando punteros
+            int jugadorGolpeadoNum = 0;
+
+            // Necesitamos identificar al jugador mediante su posición o una marca
+            // Por simplicidad, usamos la posición X
+            if (jugador->x() < escena->width() / 2) {
+                jugadorGolpeadoNum = 2; // Jugador 2 está a la izquierda
+            } else {
+                jugadorGolpeadoNum = 1; // Jugador 1 está a la derecha
+            }
+
+            // No golpear al jugador que disparó
+            if (jugadorGolpeadoNum != jugadorOwner)
+            {
+                if (!eventoEmitido)
+                {
+                    eventoEmitido = true;
+                    emit jugadorGolpeado(jugadorGolpeadoNum);
+                    emit impactoDetectado(true);
+                }
+
+                detenerYDestruir();
+                return;
+            }
+        }
+
+        // Verificar colisión con obstáculos
         Obstaculo *o = dynamic_cast<Obstaculo*>(item);
         if (o && !impacto)
         {
