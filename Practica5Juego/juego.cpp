@@ -3,12 +3,12 @@
 #include "proyectil.h"
 #include "obstaculo.h"
 #include <QHBoxLayout>
-#include <QMessageBox>
 #include <QDebug>
 #include <QScreen>
 #include <QGuiApplication>
 #include <QTimer>
 #include <QPainter>
+#include <QMessageBox> // Mantener por si se requiere para errores, pero no para fin de juego.
 
 Juego::Juego(QWidget *parent)
     : QMainWindow(parent)
@@ -17,6 +17,10 @@ Juego::Juego(QWidget *parent)
     , puntajeJ1(0)
     , puntajeJ2(0)
     , turnoEnProceso(false)
+    , hitOccurredThisTurn(false)
+    , proyectilActivo(false)
+    , finJuegoOverlay(nullptr)
+    , fondoGameOver(nullptr)
 {
     qDebug() << "=== JUEGO CONSTRUCTOR INICIADO ===";
 
@@ -170,13 +174,23 @@ Juego::Juego(QWidget *parent)
 
     qDebug() << "Creando escena con tamaño:" << anchoEscena << "x" << altoEscena;
     escena = new QGraphicsScene(0, 0, anchoEscena, altoEscena, this);
-    escena->setBackgroundBrush(QBrush(QPixmap(":/Recursos/Fondos/Background.jpg")));
+    escena->setBackgroundBrush(QBrush(QPixmap(":/Recursos/Fondos/Background.jpg"))); // Fondo inicial
 
     qDebug() << "Creando vista...";
     vista = new QGraphicsView(escena, widgetCentral);
     vista->setRenderHint(QPainter::Antialiasing);
     vista->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
     vista->setVerticalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
+
+    // [NUEVO] Crear el QGraphicsPixmapItem para el fondo de Game Over.
+    QPixmap pixmapGameOver(":/Recursos/Fondos/GameOver.jpg"); // Asume que tienes este recurso
+    if (!pixmapGameOver.isNull()) {
+        fondoGameOver = new QGraphicsPixmapItem(pixmapGameOver.scaled(anchoEscena, altoEscena, Qt::IgnoreAspectRatio, Qt::SmoothTransformation));
+        fondoGameOver->setPos(0, 0);
+        fondoGameOver->setZValue(-1); // Muy bajo, para que esté debajo de todo
+        escena->addItem(fondoGameOver);
+        fondoGameOver->setVisible(false);
+    }
 
     sueloY = altoEscena * 0.9;
     alturaSuelo = altoEscena - sueloY;
@@ -205,6 +219,15 @@ Juego::Juego(QWidget *parent)
     qDebug() << "Creando corazones...";
     crearCorazones();
 
+    // [NUEVO] Crear e inicializar el overlay de fin de juego (oculto por defecto)
+    finJuegoOverlay = new FinDeJuegoOverlay(anchoEscena, altoEscena);
+    escena->addItem(finJuegoOverlay);
+
+    // Conectar la señal del botón del overlay al slot de reinicio dedicado
+    connect(finJuegoOverlay, &FinDeJuegoOverlay::reiniciarJuegoSolicitado,
+            this, &Juego::onReiniciarDesdeOverlay);
+
+
     qDebug() << "Configurando layout...";
     QHBoxLayout *layoutGeneral = new QHBoxLayout(widgetCentral);
     layoutGeneral->setContentsMargins(0, 0, 0, 0);
@@ -220,6 +243,8 @@ Juego::Juego(QWidget *parent)
 
     qDebug() << "=== JUEGO CONSTRUCTOR COMPLETADO ===";
 }
+
+// ... (Resto de funciones: crearCorazones, actualizarCorazones, crearCasa, obtenerEscena, getSueloY, actualizarPanel sin cambios)
 
 void Juego::crearCorazones()
 {
@@ -384,6 +409,7 @@ void Juego::actualizarPanel(double angulo, double velocidad)
     }
 }
 
+
 void Juego::onJugadorGolpeado(int jugadorNumero)
 {
     qDebug() << ">>> Jugador" << jugadorNumero << "fue golpeado!";
@@ -395,7 +421,9 @@ void Juego::onJugadorGolpeado(int jugadorNumero)
         jugadorGolpeado->perderVida();
         actualizarCorazones();
 
-        // Verificar si el jugador perdió todas las vidas
+        // Si golpea al jugador, se considera un acierto.
+        hitOccurredThisTurn = true;
+
         if (jugadorGolpeado->getVidas() <= 0) {
             qDebug() << ">>> Jugador" << jugadorNumero << "perdió todas las vidas!";
             verificarFinJuego();
@@ -414,6 +442,12 @@ void Juego::onImpactoProyectil(bool acerto)
     }
 
     turnoEnProceso = true;
+
+    // Si acierta a NPC/obstáculo, marca el turno como un acierto.
+    if (acerto) {
+        hitOccurredThisTurn = true;
+    }
+
     registrarImpacto(acerto);
 }
 
@@ -427,10 +461,23 @@ void Juego::onProyectilFinalizado()
         return;
     }
 
+    // LÓGICA DE FALLO: Si no hubo acierto (ni a jugador, ni a NPC, ni a obstáculo), se considera fallo.
+    if (!hitOccurredThisTurn) {
+        qDebug() << ">>> FALLO detectado. Jugador" << jugadorActual << "pierde una vida.";
+        Jugador *jugadorPerdedor = (jugadorActual == 1) ? jugador1 : jugador2;
+
+        if (jugadorPerdedor) {
+            jugadorPerdedor->perderVida();
+            actualizarCorazones();
+        }
+        verificarFinJuego();
+    }
+
     QTimer::singleShot(50, this, [this]() {
         qDebug() << ">>> Cambiando turno después de delay";
         cambiarTurno();
         turnoEnProceso = false;
+        proyectilActivo = false; // Permite el siguiente lanzamiento
     });
 }
 
@@ -491,6 +538,36 @@ void Juego::cambiarTurno()
     {
         actualizarPanel(jugadorActivo->getAngulo(), jugadorActivo->getVelocidad());
     }
+
+    // Resetear el flag de acierto para el siguiente turno
+    hitOccurredThisTurn = false;
+}
+
+// Función para manejar el lanzamiento y su restricción
+void Juego::lanzarProyectil(double angulo, double velocidad, qreal x, qreal y, int numJugador)
+{
+    // Restricción de un solo proyectil activo
+    if (proyectilActivo) {
+        qDebug() << ">>> Lanzamiento denegado: Ya hay un proyectil activo en la escena.";
+        return;
+    }
+
+    proyectilActivo = true; // Marcar el proyectil como activo
+
+    qDebug() << ">>> Lanzando proyectil para Jugador" << numJugador;
+    Proyectil *p = new Proyectil(x, y, velocidad, angulo, numJugador);
+
+    // Conectar señales
+    QObject::connect(p, &Proyectil::impactoDetectado,
+                     this, &Juego::onImpactoProyectil);
+    QObject::connect(p, &Proyectil::proyectilFinalizado,
+                     this, &Juego::onProyectilFinalizado);
+    QObject::connect(p, &Proyectil::jugadorGolpeado,
+                     this, &Juego::onJugadorGolpeado);
+
+    escena->addItem(p);
+
+    qDebug() << ">>> Proyectil lanzado exitosamente";
 }
 
 void Juego::verificarFinJuego()
@@ -506,9 +583,61 @@ void Juego::verificarFinJuego()
     }
 }
 
+// [NUEVO] Gestiona el cambio de fondo de escena y visibilidad de elementos
+void Juego::cambiarFondoEscena(bool aGameOver)
+{
+    // Ocultar proyectiles si están activos
+    QList<QGraphicsItem*> items = escena->items();
+    for (QGraphicsItem *item : items) {
+        if (dynamic_cast<Proyectil*>(item)) {
+            item->setVisible(!aGameOver);
+        }
+    }
+
+    if (aGameOver) {
+        // Modo Game Over: Oculta fondo normal, muestra fondo de Game Over
+        escena->setBackgroundBrush(Qt::NoBrush);
+        if (fondoGameOver) {
+            fondoGameOver->setVisible(true);
+        }
+
+        // Ocultar elementos del juego
+        if (jugador1) jugador1->setVisible(false);
+        if (jugador2) jugador2->setVisible(false);
+
+        for (QGraphicsPixmapItem *c : corazonesJ1) c->setVisible(false);
+        for (QGraphicsPixmapItem *c : corazonesJ2) c->setVisible(false);
+
+        // Ocultar obstaculos (opcional)
+        for (Obstaculo *o : obstaculosCasa) o->setVisible(false);
+        if (obstaculoNPC) obstaculoNPC->setVisible(false);
+
+    } else {
+        // Restaurar modo normal
+        escena->setBackgroundBrush(QBrush(QPixmap(":/Recursos/Fondos/Background.jpg")));
+        if (fondoGameOver) {
+            fondoGameOver->setVisible(false);
+        }
+
+        // Mostrar elementos del juego
+        if (jugador1) jugador1->setVisible(true);
+        if (jugador2) jugador2->setVisible(true);
+
+        // La visibilidad de los corazones se maneja en actualizarCorazones() en reiniciarJuego
+        // Aquí solo se asegura que los items estén en la escena.
+        for (QGraphicsPixmapItem *c : corazonesJ1) c->setVisible(true);
+        for (QGraphicsPixmapItem *c : corazonesJ2) c->setVisible(true);
+
+        for (Obstaculo *o : obstaculosCasa) o->setVisible(true);
+        if (obstaculoNPC) obstaculoNPC->setVisible(true);
+    }
+}
+
 void Juego::mostrarGanador()
 {
     QString mensaje;
+    QString titulo;
+    QString ganadorColor = "#ecf0f1"; // Color por defecto (blanco)
 
     bool j1SinVidas = jugador1 && jugador1->getVidas() <= 0;
     bool j2SinVidas = jugador2 && jugador2->getVidas() <= 0;
@@ -516,43 +645,82 @@ void Juego::mostrarGanador()
 
     if (j1SinVidas && j2SinVidas)
     {
-        mensaje = "¡Empate! Ambos jugadores perdieron todas sus vidas.";
+        titulo = "¡AMBOS DERROTADOS!";
+        mensaje = QString("Ambos jugadores han perdido todas sus vidas.\n\n"
+                          "Puntaje final:\nJugador 1: %1\nJugador 2: %2")
+                      .arg(puntajeJ1).arg(puntajeJ2);
+        ganadorColor = "#f39c12"; // Naranja para empate
     }
     else if (j1SinVidas)
     {
-        mensaje = QString("¡Jugador 2 gana!\nJugador 1 perdió todas sus vidas.\nPuntaje final:\nJugador 1: %1\nJugador 2: %2")
+        titulo = "¡JUGADOR 2 GANA!";
+        mensaje = QString("Jugador 1 perdió todas sus vidas.\n\n"
+                          "Puntaje final:\nJugador 1: %1\nJugador 2: %2")
                       .arg(puntajeJ1).arg(puntajeJ2);
+        ganadorColor = "#9b59b6"; // Morado para J2
     }
     else if (j2SinVidas)
     {
-        mensaje = QString("¡Jugador 1 gana!\nJugador 2 perdió todas sus vidas.\nPuntaje final:\nJugador 1: %1\nJugador 2: %2")
+        titulo = "¡JUGADOR 1 GANA!";
+        mensaje = QString("Jugador 2 perdió todas sus vidas.\n\n"
+                          "Puntaje final:\nJugador 1: %1\nJugador 2: %2")
                       .arg(puntajeJ1).arg(puntajeJ2);
+        ganadorColor = "#2ecc71"; // Verde para J1
     }
     else if (npcDestruido)
     {
+        titulo = "¡NPC DERROTADO!";
         if (puntajeJ1 > puntajeJ2)
         {
-            mensaje = QString("¡Jugador 1 gana!\n¡El NPC fue derrotado!\nPuntaje final:\nJugador 1: %1\nJugador 2: %2")
+            mensaje = QString("¡Jugador 1 ha obtenido la mayor puntuación!\n\n"
+                              "Puntaje final:\nJugador 1: %1\nJugador 2: %2")
                           .arg(puntajeJ1).arg(puntajeJ2);
+            ganadorColor = "#2ecc71"; // Verde para J1
         }
         else if (puntajeJ2 > puntajeJ1)
         {
-            mensaje = QString("¡Jugador 2 gana!\n¡El NPC fue derrotado!\nPuntaje final:\nJugador 1: %1\nJugador 2: %2")
+            mensaje = QString("¡Jugador 2 ha obtenido la mayor puntuación!\n\n"
+                              "Puntaje final:\nJugador 1: %1\nJugador 2: %2")
                           .arg(puntajeJ1).arg(puntajeJ2);
+            ganadorColor = "#9b59b6"; // Morado para J2
         }
         else
         {
-            mensaje = QString("¡Empate!\n¡El NPC fue derrotado!\nPuntaje final: %1 - %1")
+            mensaje = QString("¡Empate en puntuación después de derrotar al NPC!\n\n"
+                              "Puntaje final: %1 - %1")
                           .arg(puntajeJ1);
+            ganadorColor = "#f39c12"; // Naranja para empate
         }
     }
 
-    QMessageBox::information(this, "Fin del Juego", mensaje);
+    // Cambiar la escena al modo Game Over (fondo, ocultar elementos)
+    cambiarFondoEscena(true);
+
+    // Mostrar el overlay con la información
+    if (finJuegoOverlay) {
+        finJuegoOverlay->mostrarMensaje(titulo, mensaje, ganadorColor);
+    }
+
+    // Desactivar la entrada de teclado
+    vista->setFocusPolicy(Qt::NoFocus);
+    if (jugadorActivo) jugadorActivo->clearFocus();
 }
 
 void Juego::onReiniciar()
 {
-    qDebug() << ">>> Reiniciar juego solicitado";
+    qDebug() << ">>> Reiniciar juego solicitado desde Panel lateral";
+    reiniciarJuego();
+}
+
+// Slot para manejar el reinicio desde el overlay
+void Juego::onReiniciarDesdeOverlay()
+{
+    qDebug() << ">>> Reiniciar juego solicitado desde Overlay";
+    // Ocultar el overlay
+    if (finJuegoOverlay) {
+        finJuegoOverlay->ocultar();
+    }
+    // Ejecutar la lógica de reinicio
     reiniciarJuego();
 }
 
@@ -593,7 +761,7 @@ void Juego::reiniciarJuego()
         }
     }
 
-    qDebug() << ">>> Eliminando obstáculos...";
+    qDebug() << ">>> Eliminando obstáculos de la casa...";
     for (int i = obstaculosCasa.size() - 1; i >= 0; --i)
     {
         Obstaculo *obs = obstaculosCasa[i];
@@ -619,9 +787,16 @@ void Juego::reiniciarJuego()
     jugadorActual = 1;
     turnoEnProceso = false;
 
+    // Resetear flags de estado
+    hitOccurredThisTurn = false;
+    proyectilActivo = false;
+
     if (labelPuntajeJ1) labelPuntajeJ1->setText("🎮 Jugador 1: 0 pts");
     if (labelPuntajeJ2) labelPuntajeJ2->setText("🎮 Jugador 2: 0 pts");
     if (labelJugador) labelJugador->setText("Turno: Jugador 1");
+
+    // Restaurar el fondo de la escena y visibilidad de elementos del juego
+    cambiarFondoEscena(false);
 
     qDebug() << ">>> Recreando casa...";
     crearCasa();
@@ -631,6 +806,7 @@ void Juego::reiniciarJuego()
     if (jugador2) jugador2->resetear();
     jugadorActivo = jugador1;
     if (jugador1) jugador1->setFocus();
+    vista->setFocusPolicy(Qt::StrongFocus); // Restaurar focus en la vista
 
     actualizarPanel(45, 20);
     actualizarCorazones();

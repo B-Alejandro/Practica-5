@@ -215,7 +215,7 @@ void Proyectil::actualizar()
             qDebug() << ">>> Colisión detectada con jugador" << jugadorGolpeadoNum;
 
             // No golpear al jugador que disparó
-            if (jugadorGolpeadoNum != jugadorOwner)
+            if (jugadorGolpeadoNum != jugadorOwner || rebotesRestantes < 3)
             {
                 impacto = true;
 
