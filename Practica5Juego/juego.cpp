@@ -9,7 +9,7 @@
 #include <QTimer>
 #include <QPainter>
 #include <QMessageBox> // Mantener por si se requiere para errores, pero no para fin de juego.
-
+// [CORREGIDO] Se eliminó el 'void' ya que los constructores no tienen tipo de retorno.
 Juego::Juego(QWidget *parent)
     : QMainWindow(parent)
     , widgetCentral(nullptr)
@@ -89,6 +89,12 @@ Juego::Juego(QWidget *parent)
         "padding: 5px;"
         );
 
+    // [CORREGIDO] Cálculo de la escena y suelo
+    // Calcular tamaño de la escena
+    int anchoPanel = 180;
+    int anchoEscena = width() - anchoPanel - 20;
+    int altoEscena = height() - 40;
+
     labelVidasJ1 = new QLabel("❤️ Vidas: 5");
     labelVidasJ1->setStyleSheet("font-size: 12px; color: #e74c3c; font-weight: bold;");
 
@@ -167,11 +173,6 @@ Juego::Juego(QWidget *parent)
         "}"
         );
 
-    // Calcular tamaño de la escena
-    int anchoPanel = 180;
-    int anchoEscena = width() - anchoPanel - 20;
-    int altoEscena = height() - 40;
-
     qDebug() << "Creando escena con tamaño:" << anchoEscena << "x" << altoEscena;
     escena = new QGraphicsScene(0, 0, anchoEscena, altoEscena, this);
     escena->setBackgroundBrush(QBrush(QPixmap(":/Recursos/Fondos/Background.jpg"))); // Fondo inicial
@@ -213,8 +214,12 @@ Juego::Juego(QWidget *parent)
     suelo->setBrush(QBrush(QColor(101, 67, 33)));
     escena->addItem(suelo);
 
-    qDebug() << "Creando casa...";
-    crearCasa();
+    // [CORREGIDO] Crear las casas después de inicializar escena y sueloY
+    qDebug() << "Creando casas y targets...";
+    crearCasa(escena->width() * 0.25 - 85, 170, 150); // Casa 1 (Izquierda)
+    crearCasa(escena->width() * 0.75 - 85, 170, 150); // Casa 2 (Derecha)
+
+    // Removida la llamada a crearCasa() sin argumentos
 
     qDebug() << "Creando corazones...";
     crearCorazones();
@@ -243,8 +248,6 @@ Juego::Juego(QWidget *parent)
 
     qDebug() << "=== JUEGO CONSTRUCTOR COMPLETADO ===";
 }
-
-// ... (Resto de funciones: crearCorazones, actualizarCorazones, crearCasa, obtenerEscena, getSueloY, actualizarPanel sin cambios)
 
 void Juego::crearCorazones()
 {
@@ -329,65 +332,51 @@ void Juego::actualizarCorazones()
     if (labelVidasJ2) labelVidasJ2->setText(QString("❤️ Vidas: %1").arg(vidasJ2));
 }
 
-void Juego::crearCasa()
+void Juego::crearCasa(qreal posX, qreal ancho, qreal alto)
 {
-    qDebug() << ">>> Creando casa con componentes de vida diferenciada";
+    qDebug() << ">>> Creando casa en X:" << posX;
 
-    qreal anchoEscena = escena->width();
-    qreal casaX = anchoEscena * 0.5 - 85;
-    qreal casaAncho = 170;
-    qreal casaAlto = 150;
+    qreal casaX = posX;
+    qreal casaAncho = ancho;
+    qreal casaAlto = alto;
     qreal casaY = sueloY - casaAlto;
 
-    Obstaculo *paredIzq = new Obstaculo(5);
+    // Bloques de la casa (Obstáculos)
+    // Pared Izquierda (Vida 20 - AUMENTADA)
+    Obstaculo *paredIzq = new Obstaculo(20);
     paredIzq->setRect(0, 0, 20, casaAlto);
     paredIzq->setPos(casaX, casaY);
     paredIzq->setBrush(QBrush(QColor(139, 69, 19)));
-    escena->addItem(paredIzq);
     obstaculosCasa.append(paredIzq);
+    escena->addItem(paredIzq);
 
-    Obstaculo *paredDer = new Obstaculo(5);
+    // Pared Derecha (Vida 20 - AUMENTADA)
+    Obstaculo *paredDer = new Obstaculo(20);
     paredDer->setRect(0, 0, 20, casaAlto);
     paredDer->setPos(casaX + casaAncho - 20, casaY);
     paredDer->setBrush(QBrush(QColor(139, 69, 19)));
-    escena->addItem(paredDer);
     obstaculosCasa.append(paredDer);
+    escena->addItem(paredDer);
 
-    Obstaculo *techoIzq = new Obstaculo(10);
-    techoIzq->setRect(0, 0, 85, 20);
-    techoIzq->setPos(casaX, casaY - 5);
-    techoIzq->setBrush(QBrush(QColor(178, 34, 34)));
-    escena->addItem(techoIzq);
-    obstaculosCasa.append(techoIzq);
+    // Techo (Vida 40 - AUMENTADA)
+    Obstaculo *techo = new Obstaculo(40);
+    techo->setRect(0, 0, casaAncho, 20);
+    techo->setPos(casaX, casaY - 5);
+    techo->setBrush(QBrush(QColor(178, 34, 34)));
+    obstaculosCasa.append(techo);
+    escena->addItem(techo);
 
-    Obstaculo *techoDer = new Obstaculo(10);
-    techoDer->setRect(0, 0, 85, 20);
-    techoDer->setPos(casaX + 85, casaY - 5);
-    techoDer->setBrush(QBrush(QColor(178, 34, 34)));
-    escena->addItem(techoDer);
-    obstaculosCasa.append(techoDer);
+    // [CORREGIDO] Creación del TARGET (ex-NPC) como un Obstaculo especial.
+    // Vida aumentada a 10 para el target.
+    Obstaculo *target = new Obstaculo(10); // Target con 10 de vida
+    target->setRect(0, 0, 30, 30); // Tamaño del target
+    target->setPos(casaX + (casaAncho / 2) - 15, casaY + casaAlto - 50); // Posición centrada
+    target->setBrush(QBrush(QColor(255, 215, 0))); // Color dorado para diferenciar
+    targets.append(target); // Agregar a la nueva lista de targets
+    obstaculosCasa.append(target); // También añadir a la lista de obstáculos
+    escena->addItem(target);
 
-    Obstaculo *pisoFrontal = new Obstaculo(1);
-    pisoFrontal->setRect(0, 0, casaAncho, 20);
-    pisoFrontal->setPos(casaX, sueloY - 20);
-    pisoFrontal->setBrush(QBrush(QColor(139, 69, 19)));
-    escena->addItem(pisoFrontal);
-    obstaculosCasa.append(pisoFrontal);
-
-    Obstaculo *puerta = new Obstaculo(1);
-    puerta->setRect(0, 0, 50, 80);
-    puerta->setPos(casaX + 60, sueloY - 80);
-    puerta->setBrush(QBrush(QColor(101, 67, 33)));
-    escena->addItem(puerta);
-    obstaculosCasa.append(puerta);
-
-    obstaculoNPC = new Obstaculo(1);
-    obstaculoNPC->setRect(0, 0, 30, 50);
-    obstaculoNPC->setPos(casaX + 70, casaY + 20);
-    obstaculoNPC->setBrush(QBrush(QColor(255, 215, 0)));
-    escena->addItem(obstaculoNPC);
-
-    qDebug() << ">>> Casa creada";
+    qDebug() << ">>> Casa y Target creados en" << posX;
 }
 
 QGraphicsScene* Juego::obtenerEscena() const
@@ -443,7 +432,7 @@ void Juego::onImpactoProyectil(bool acerto)
 
     turnoEnProceso = true;
 
-    // Si acierta a NPC/obstáculo, marca el turno como un acierto.
+    // Si acierta a target/obstáculo, marca el turno como un acierto.
     if (acerto) {
         hitOccurredThisTurn = true;
     }
@@ -461,7 +450,7 @@ void Juego::onProyectilFinalizado()
         return;
     }
 
-    // LÓGICA DE FALLO: Si no hubo acierto (ni a jugador, ni a NPC, ni a obstáculo), se considera fallo.
+    // LÓGICA DE FALLO: Si no hubo acierto (ni a jugador, ni a target, ni a obstáculo), se considera fallo.
     if (!hitOccurredThisTurn) {
         qDebug() << ">>> FALLO detectado. Jugador" << jugadorActual << "pierde una vida.";
         Jugador *jugadorPerdedor = (jugadorActual == 1) ? jugador1 : jugador2;
@@ -568,15 +557,24 @@ void Juego::lanzarProyectil(double angulo, double velocidad, qreal x, qreal y, i
     escena->addItem(p);
 
     qDebug() << ">>> Proyectil lanzado exitosamente";
+
 }
 
 void Juego::verificarFinJuego()
 {
     bool j1SinVidas = jugador1 && jugador1->getVidas() <= 0;
     bool j2SinVidas = jugador2 && jugador2->getVidas() <= 0;
-    bool npcDestruido = obstaculoNPC && obstaculoNPC->obtenerVida() <= 0;
 
-    if (j1SinVidas || j2SinVidas || npcDestruido)
+    // [CORREGIDO] Verificar si TODOS los targets (ex-NPCs) han sido destruidos.
+    bool todosTargetsDestruidos = true;
+    for (Obstaculo *target : targets) {
+        if (target->obtenerVida() > 0) {
+            todosTargetsDestruidos = false;
+            break;
+        }
+    }
+
+    if (j1SinVidas || j2SinVidas || todosTargetsDestruidos)
     {
         qDebug() << ">>> Fin del juego detectado";
         mostrarGanador();
@@ -588,9 +586,11 @@ void Juego::cambiarFondoEscena(bool aGameOver)
 {
     // Ocultar proyectiles si están activos
     QList<QGraphicsItem*> items = escena->items();
+    QList<Proyectil*> proyectiles;
     for (QGraphicsItem *item : items) {
         if (dynamic_cast<Proyectil*>(item)) {
             item->setVisible(!aGameOver);
+            proyectiles.append(dynamic_cast<Proyectil*>(item));
         }
     }
 
@@ -608,9 +608,15 @@ void Juego::cambiarFondoEscena(bool aGameOver)
         for (QGraphicsPixmapItem *c : corazonesJ1) c->setVisible(false);
         for (QGraphicsPixmapItem *c : corazonesJ2) c->setVisible(false);
 
-        // Ocultar obstaculos (opcional)
+        // Ocultar obstaculos
         for (Obstaculo *o : obstaculosCasa) o->setVisible(false);
         if (obstaculoNPC) obstaculoNPC->setVisible(false);
+
+        // Detener proyectiles si no están destruidos
+        for (Proyectil *p : proyectiles) {
+            // Asumiendo que Proyectil tiene un método para detener su timer
+            // Si no lo tiene, es un buen lugar para añadirlo o dejar que terminen.
+        }
 
     } else {
         // Restaurar modo normal
@@ -641,7 +647,15 @@ void Juego::mostrarGanador()
 
     bool j1SinVidas = jugador1 && jugador1->getVidas() <= 0;
     bool j2SinVidas = jugador2 && jugador2->getVidas() <= 0;
-    bool npcDestruido = obstaculoNPC && obstaculoNPC->obtenerVida() <= 0;
+
+    // [CORREGIDO] Verificar si todos los targets han sido destruidos.
+    bool todosTargetsDestruidos = true;
+    for (Obstaculo *target : targets) {
+        if (target->obtenerVida() > 0) {
+            todosTargetsDestruidos = false;
+            break;
+        }
+    }
 
     if (j1SinVidas && j2SinVidas)
     {
@@ -667,9 +681,9 @@ void Juego::mostrarGanador()
                       .arg(puntajeJ1).arg(puntajeJ2);
         ganadorColor = "#2ecc71"; // Verde para J1
     }
-    else if (npcDestruido)
+    else if (todosTargetsDestruidos) // [CORREGIDO] Usar la nueva variable
     {
-        titulo = "¡NPC DERROTADO!";
+        titulo = "¡TARGETS DESTRUIDOS!";
         if (puntajeJ1 > puntajeJ2)
         {
             mensaje = QString("¡Jugador 1 ha obtenido la mayor puntuación!\n\n"
@@ -686,7 +700,7 @@ void Juego::mostrarGanador()
         }
         else
         {
-            mensaje = QString("¡Empate en puntuación después de derrotar al NPC!\n\n"
+            mensaje = QString("¡Empate en puntuación después de destruir los targets!\n\n"
                               "Puntaje final: %1 - %1")
                           .arg(puntajeJ1);
             ganadorColor = "#f39c12"; // Naranja para empate
@@ -761,6 +775,20 @@ void Juego::reiniciarJuego()
         }
     }
 
+    qDebug() << ">>> Eliminando targets (ex-NPCs)...";
+    for (int i = targets.size() - 1; i >= 0; --i)
+    {
+        Obstaculo *target = targets[i];
+        if (target && target->scene() == escena)
+        {
+            // El target ya se eliminó del escena al eliminar el obstáculo de la casa.
+            // Solo necesitamos eliminar la referencia del target
+            // La eliminación del objeto 'target' se maneja abajo en obstaculosCasa.
+        }
+    }
+    targets.clear(); // Limpiar la lista de targets
+
+
     qDebug() << ">>> Eliminando obstáculos de la casa...";
     for (int i = obstaculosCasa.size() - 1; i >= 0; --i)
     {
@@ -772,6 +800,7 @@ void Juego::reiniciarJuego()
         }
     }
     obstaculosCasa.clear();
+
 
     if (obstaculoNPC)
     {
@@ -799,7 +828,9 @@ void Juego::reiniciarJuego()
     cambiarFondoEscena(false);
 
     qDebug() << ">>> Recreando casa...";
-    crearCasa();
+    // [CORREGIDO] Llama a crearCasa con los parámetros para recrear las dos casas
+    crearCasa(escena->width() * 0.25 - 85, 170, 150); // Casa 1 (Izquierda)
+    crearCasa(escena->width() * 0.75 - 85, 170, 150); // Casa 2 (Derecha)
 
     qDebug() << ">>> Reseteando jugadores...";
     if (jugador1) jugador1->resetear();

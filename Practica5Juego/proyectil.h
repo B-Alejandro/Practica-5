@@ -20,6 +20,7 @@ public:
               double gravedad = 98.0);
 
     ~Proyectil();
+    double getVelocidadActual() const; // Nuevo: Para obtener la magnitud del vector velocidad
 
 signals:
     void impactoDetectado(bool acerto);

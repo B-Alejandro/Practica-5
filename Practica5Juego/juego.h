@@ -41,6 +41,8 @@ private slots:
     void onReiniciarDesdeOverlay(); // Slot para la señal del overlay
 
 private:
+    QList<Obstaculo*> targets; // NUEVO: Lista de targets (ex-NPCs) para verificar la condición de victoria.
+
     QWidget *widgetCentral;
     QGraphicsView *vista;
     QGraphicsScene *escena;
@@ -51,7 +53,7 @@ private:
 
     // Obstáculos que forman la casa
     QList<Obstaculo*> obstaculosCasa;
-    Obstaculo *obstaculoNPC;
+    Obstaculo *obstaculoNPC; // Se mantiene por si se usa en otro lado, pero no para la lógica de fin de juego.
 
     // Panel de información (labels y botón)
     QLabel *labelAngulo;
@@ -85,7 +87,7 @@ private:
     qreal sueloY;
     qreal alturaSuelo;
 
-    void crearCasa();
+    void crearCasa(qreal posX, qreal ancho, qreal alto); // [MODIFICADO] Recibe posición y tamaño
     void crearCorazones();
     void actualizarCorazones();
     void registrarImpacto(bool acerto);
@@ -93,7 +95,7 @@ private:
     void verificarFinJuego();
     void mostrarGanador();
     void reiniciarJuego();
-    void cambiarFondoEscena(bool aGameOver); // Gestiona el fondo y visibilidad de elementos
+    void cambiarFondoEscena(bool aGameOver);// Gestiona el fondo y visibilidad de elementos
 };
 
 #endif // JUEGO_H

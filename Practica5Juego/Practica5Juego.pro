@@ -13,7 +13,6 @@ SOURCES += \
     juego.cpp \
     jugador.cpp \
     main.cpp \
-    mainwindow.cpp \
     obstaculo.cpp \
     proyectil.cpp
 
@@ -21,11 +20,10 @@ HEADERS += \
     finjuegooverlay.h \
     juego.h \
     jugador.h \
-    mainwindow.h \
     obstaculo.h \
     proyectil.h
 
-FORMS += mainwindow.ui
+FORMS +=
 
 # Default rules for deployment.
 qnx: target.path = /tmp/$${TARGET}/bin

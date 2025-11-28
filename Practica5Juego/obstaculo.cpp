@@ -1,12 +1,23 @@
 #include "obstaculo.h"
 #include <QDebug>
 #include <QColor>
+#include <QFont>
+#include <QGraphicsScene> // Para agregar el label a la escena
 
 Obstaculo::Obstaculo(int vidaInicial)
     : vida(vidaInicial), vidaMaxima(vidaInicial)
+    , labelVida(new QGraphicsTextItem(this)) // El Obstaculo es el padre del label
 {
     qDebug() << ">>> Creando Obstaculo con vida:" << vidaInicial;
     setRect(0, 0, 60, 60);
+
+    // Configurar y posicionar el label de vida
+    labelVida->setFont(QFont("Arial", 10, QFont::Bold));
+    labelVida->setDefaultTextColor(Qt::white);
+    // Posicionar el texto en el centro del obstáculo (ajustes manuales)
+    labelVida->setPos(rect().width() / 2 - 10, rect().height() / 2 - 10);
+    labelVida->setZValue(1); // Asegurar que esté sobre el rectángulo
+
     actualizarColor();
 }
 
@@ -21,6 +32,11 @@ void Obstaculo::recibirDano(int d)
 
     qDebug() << ">>> Vida actual:" << vida;
     actualizarColor();
+
+    // Si la vida es 0, no mostrar el texto, si no, actualizarlo
+    if (vida <= 0) {
+        labelVida->setVisible(false);
+    }
 }
 
 int Obstaculo::obtenerVida() const
@@ -58,4 +74,7 @@ void Obstaculo::actualizarColor()
 
     setBrush(QBrush(color));
     qDebug() << ">>> Color actualizado. Vida:" << vida << "Porcentaje:" << porcentajeVida << "%";
+
+    // Actualizar el texto del label de vida
+    labelVida->setPlainText(QString::number(vida));
 }
