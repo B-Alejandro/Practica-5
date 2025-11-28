@@ -62,7 +62,7 @@ Juego::Juego(QWidget *parent)
     labelAngulo = new QLabel("Ángulo: 45°");
     labelAngulo->setStyleSheet("font-size: 13px; color: #ecf0f1;");
 
-    labelVelocidad = new QLabel("Velocidad: 50");
+    labelVelocidad = new QLabel("Velocidad: 20");
     labelVelocidad->setStyleSheet("font-size: 13px; color: #ecf0f1;");
 
     labelPuntajeJ1 = new QLabel("🎮 Jugador 1: 0 pts");
@@ -170,7 +170,6 @@ Juego::Juego(QWidget *parent)
 
     qDebug() << "Creando escena con tamaño:" << anchoEscena << "x" << altoEscena;
     escena = new QGraphicsScene(0, 0, anchoEscena, altoEscena, this);
-    // MODIFICACIÓN: Usar QPixmap con la ruta del recurso
     escena->setBackgroundBrush(QBrush(QPixmap(":/Recursos/Fondos/Background.jpg")));
 
     qDebug() << "Creando vista...";
@@ -184,11 +183,11 @@ Juego::Juego(QWidget *parent)
 
     qDebug() << "Creando jugadores...";
 
-    qDebug() << "Creando jugador 1 (derecha)...";
+    qDebug() << "Creando jugador 1...";
     jugador1 = new Jugador(this, escena, 1);
     escena->addItem(jugador1);
 
-    qDebug() << "Creando jugador 2 (izquierda)...";
+    qDebug() << "Creando jugador 2...";
     jugador2 = new Jugador(this, escena, 2);
     escena->addItem(jugador2);
 
@@ -217,7 +216,7 @@ Juego::Juego(QWidget *parent)
     widgetCentral->setLayout(layoutGeneral);
 
     qDebug() << "Actualizando panel inicial...";
-    actualizarPanel(45, 50);
+    actualizarPanel(45, 20);
 
     qDebug() << "=== JUEGO CONSTRUCTOR COMPLETADO ===";
 }
@@ -461,8 +460,6 @@ void Juego::registrarImpacto(bool acerto)
     verificarFinJuego();
 }
 
-// En la función cambiarTurno(), busca estas líneas y elimínalas:
-
 void Juego::cambiarTurno()
 {
     qDebug() << ">>> cambiarTurno, jugadorActual:" << jugadorActual;
@@ -476,7 +473,6 @@ void Juego::cambiarTurno()
     if (jugadorActual == 1)
     {
         jugadorActual = 2;
-        // ELIMINAR ESTA LÍNEA: if (jugador1) jugador1->borrarTrayectoria();
         jugadorActivo = jugador2;
         jugador2->setFocus();
         if (labelJugador)
@@ -485,7 +481,6 @@ void Juego::cambiarTurno()
     else
     {
         jugadorActual = 1;
-        // ELIMINAR ESTA LÍNEA: if (jugador2) jugador2->borrarTrayectoria();
         jugadorActivo = jugador1;
         jugador1->setFocus();
         if (labelJugador)
@@ -495,15 +490,8 @@ void Juego::cambiarTurno()
     if (jugadorActivo)
     {
         actualizarPanel(jugadorActivo->getAngulo(), jugadorActivo->getVelocidad());
-        // ELIMINAR ESTA LÍNEA: jugadorActivo->dibujarTrayectoria();
     }
 }
-
-// Resumen de cambios:
-// 1. Eliminar: if (jugador1) jugador1->borrarTrayectoria();
-// 2. Eliminar: if (jugador2) jugador2->borrarTrayectoria();
-// 3. Eliminar: jugadorActivo->dibujarTrayectoria();
-// 4. Cambiar: actualizarPanel(45, 50); por actualizarPanel(45, 20);
 
 void Juego::verificarFinJuego()
 {
@@ -644,7 +632,7 @@ void Juego::reiniciarJuego()
     jugadorActivo = jugador1;
     if (jugador1) jugador1->setFocus();
 
-    actualizarPanel(45, 50);
+    actualizarPanel(45, 20);
     actualizarCorazones();
 
     qDebug() << ">>> reiniciarJuego completado";

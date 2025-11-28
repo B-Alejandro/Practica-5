@@ -8,14 +8,14 @@
 
 Proyectil::Proyectil(double x0, double y0, double velocidad, double angulo, int jugadorPropietario, double gravedad)
     : QObject()
-    , QGraphicsEllipseItem(-5, -5, 10, 10)
+    , QGraphicsEllipseItem(-10, -10, 20, 20)
     , rebotesRestantes(3)
 {
     qDebug() << ">>> Proyectil CONSTRUCTOR iniciado";
 
     xInicial = x0;
     yInicial = y0;
-    v0 = velocidad;
+    v0 = velocidad * 3;
     g = gravedad;
     tiempo = 0.0;
     impacto = false;
@@ -27,16 +27,26 @@ Proyectil::Proyectil(double x0, double y0, double velocidad, double angulo, int 
 
     // Calcular velocidades iniciales
     velocidadX = v0 * qCos(angRad);
-    velocidadY = -v0 * qSin(angRad); // Negativo porque Y crece hacia abajo
+    velocidadY = -v0 * qSin(angRad);
 
-    setBrush(QBrush(Qt::black));
+    // ********************************************
+    // *** CÓDIGO MEJORADO PARA LA APARIENCIA ***
+    // ********************************************
+    QRadialGradient gradiente(0, 0, 10, 3, 3); // Centro: (3, 3), Radio: 10 (coordenadas locales)
+    gradiente.setColorAt(0, QColor(100, 100, 100)); // Brillo
+    gradiente.setColorAt(0.5, QColor(50, 50, 50));
+    gradiente.setColorAt(1, QColor(10, 10, 10));// Sombra
+       setBrush(QBrush(gradiente));
+    setPen(QPen(Qt::darkGray, 1)); // Borde sutil
+    // ********************************************
+
     setPos(xInicial, yInicial);
 
     timer = new QTimer(this);
     connect(timer, &QTimer::timeout, this, &Proyectil::actualizar);
     timer->start(16);
 
-    qDebug() << ">>> Proyectil CONSTRUCTOR completado" << static_cast<void*>(this);
+    qDebug() << ">>> Proyectil creado. Velocidad real:" << v0 << "Ángulo:" << angulo;
 }
 
 Proyectil::~Proyectil()
@@ -137,42 +147,42 @@ void Proyectil::actualizar()
 
     velocidadY += g * 0.016;
 
-    double x = pos().x() + velocidadX;
-    double y = pos().y() + velocidadY;
+    double x = pos().x() + velocidadX * 0.016;  // Multiplicar por dt
+    double y = pos().y() + velocidadY * 0.016;  // Multiplicar por dt
 
     double anchoEscena = escena->width();
     double altoEscena = escena->height();
-    double sueloY = altoEscena * 0.9; // Mismo cálculo que en Juego
+    double sueloY = altoEscena * 0.9;
 
-    // REBOTE EN SUELO - Corregido para usar la posición correcta del suelo
-    if (y >= sueloY - 5 && velocidadY > 0)
+    // REBOTE EN SUELO
+    if (y >= sueloY - 10 && velocidadY > 0)  // Ajustado a -10 por el tamaño del proyectil
     {
         qDebug() << ">>> Rebote en suelo detectado en Y:" << y << "SueloY:" << sueloY;
-        setPos(x, sueloY - 5);
+        setPos(x, sueloY - 10);
         procesarRebote();
         return;
     }
 
     // REBOTE EN PAREDES
-    if (x <= 0 && velocidadX < 0)
+    if (x <= 10 && velocidadX < 0)  // Ajustado por el radio del proyectil
     {
         qDebug() << ">>> Rebote en pared izquierda";
         velocidadX = -velocidadX * 0.8;
-        x = 0;
+        x = 10;
     }
-    else if (x >= anchoEscena && velocidadX > 0)
+    else if (x >= anchoEscena - 10 && velocidadX > 0)  // Ajustado por el radio del proyectil
     {
         qDebug() << ">>> Rebote en pared derecha";
         velocidadX = -velocidadX * 0.8;
-        x = anchoEscena;
+        x = anchoEscena - 10;
     }
 
     // REBOTE EN TECHO
-    if (y <= 0 && velocidadY < 0)
+    if (y <= 10 && velocidadY < 0)  // Ajustado por el radio del proyectil
     {
         qDebug() << ">>> Rebote en techo";
         velocidadY = -velocidadY * 0.8;
-        y = 0;
+        y = 10;
     }
 
     setPos(x, y);
@@ -188,7 +198,7 @@ void Proyectil::actualizar()
         return;
     }
 
-    // Detección de colisión
+    // Detección de colisión - MEJORADA
     QList<QGraphicsItem*> colisiones = collidingItems();
 
     for (QGraphicsItem *item : colisiones)
@@ -200,23 +210,15 @@ void Proyectil::actualizar()
         Jugador *jugador = dynamic_cast<Jugador*>(item);
         if (jugador && !impacto)
         {
-            qDebug() << ">>> Colisión detectada con jugador";
-            impacto = true;
+            int jugadorGolpeadoNum = jugador->getNumeroJugador();
 
-            // Determinar qué jugador fue golpeado comparando punteros
-            int jugadorGolpeadoNum = 0;
-
-            // Necesitamos identificar al jugador mediante su posición o una marca
-            // Por simplicidad, usamos la posición X
-            if (jugador->x() < escena->width() / 2) {
-                jugadorGolpeadoNum = 2; // Jugador 2 está a la izquierda
-            } else {
-                jugadorGolpeadoNum = 1; // Jugador 1 está a la derecha
-            }
+            qDebug() << ">>> Colisión detectada con jugador" << jugadorGolpeadoNum;
 
             // No golpear al jugador que disparó
             if (jugadorGolpeadoNum != jugadorOwner)
             {
+                impacto = true;
+
                 if (!eventoEmitido)
                 {
                     eventoEmitido = true;
@@ -243,7 +245,6 @@ void Proyectil::actualizar()
             if (o->obtenerVida() <= 0)
             {
                 qDebug() << ">>> Obstáculo destruido por falta de vida";
-                o->setBrush(QBrush(QColor(50, 50, 50)));
                 QGraphicsScene* escenaObs = o->scene();
                 if (escenaObs)
                 {
