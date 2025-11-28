@@ -9,8 +9,7 @@
 #include <QTimer>
 #include <QPainter>
 #include <QMessageBox> // Mantener por si se requiere para errores, pero no para fin de juego.
-// [CORREGIDO] Se eliminó el 'void' ya que los constructores no tienen tipo de retorno.
-Juego::Juego(QWidget *parent)
+Juego::Juego(QWidget *parent) // [CORREGIDO] Removido 'void'
     : QMainWindow(parent)
     , widgetCentral(nullptr)
     , jugadorActual(1)
@@ -565,16 +564,16 @@ void Juego::verificarFinJuego()
     bool j1SinVidas = jugador1 && jugador1->getVidas() <= 0;
     bool j2SinVidas = jugador2 && jugador2->getVidas() <= 0;
 
-    // [CORREGIDO] Verificar si TODOS los targets (ex-NPCs) han sido destruidos.
-    bool todosTargetsDestruidos = true;
+    // [MODIFICADO] Verificar si ALGÚN target (ex-NPC) ha sido destruido.
+    bool algunTargetDestruido = false;
     for (Obstaculo *target : targets) {
-        if (target->obtenerVida() > 0) {
-            todosTargetsDestruidos = false;
+        if (target->obtenerVida() <= 0) {
+            algunTargetDestruido = true;
             break;
         }
     }
 
-    if (j1SinVidas || j2SinVidas || todosTargetsDestruidos)
+    if (j1SinVidas || j2SinVidas || algunTargetDestruido) // [MODIFICADO] Ahora termina si ALGÚN target es destruido
     {
         qDebug() << ">>> Fin del juego detectado";
         mostrarGanador();
@@ -648,11 +647,11 @@ void Juego::mostrarGanador()
     bool j1SinVidas = jugador1 && jugador1->getVidas() <= 0;
     bool j2SinVidas = jugador2 && jugador2->getVidas() <= 0;
 
-    // [CORREGIDO] Verificar si todos los targets han sido destruidos.
-    bool todosTargetsDestruidos = true;
+    // [MODIFICADO] Verificar si ALGÚN target ha sido destruido.
+    bool algunTargetDestruido = false;
     for (Obstaculo *target : targets) {
-        if (target->obtenerVida() > 0) {
-            todosTargetsDestruidos = false;
+        if (target->obtenerVida() <= 0) {
+            algunTargetDestruido = true;
             break;
         }
     }
@@ -681,9 +680,9 @@ void Juego::mostrarGanador()
                       .arg(puntajeJ1).arg(puntajeJ2);
         ganadorColor = "#2ecc71"; // Verde para J1
     }
-    else if (todosTargetsDestruidos) // [CORREGIDO] Usar la nueva variable
+    else if (algunTargetDestruido) // [MODIFICADO] Usar la nueva variable
     {
-        titulo = "¡TARGETS DESTRUIDOS!";
+        titulo = "¡TARGET DESTRUIDO!";
         if (puntajeJ1 > puntajeJ2)
         {
             mensaje = QString("¡Jugador 1 ha obtenido la mayor puntuación!\n\n"
@@ -700,7 +699,7 @@ void Juego::mostrarGanador()
         }
         else
         {
-            mensaje = QString("¡Empate en puntuación después de destruir los targets!\n\n"
+            mensaje = QString("¡Empate en puntuación al destruir un target!\n\n"
                               "Puntaje final: %1 - %1")
                           .arg(puntajeJ1);
             ganadorColor = "#f39c12"; // Naranja para empate
@@ -776,16 +775,8 @@ void Juego::reiniciarJuego()
     }
 
     qDebug() << ">>> Eliminando targets (ex-NPCs)...";
-    for (int i = targets.size() - 1; i >= 0; --i)
-    {
-        Obstaculo *target = targets[i];
-        if (target && target->scene() == escena)
-        {
-            // El target ya se eliminó del escena al eliminar el obstáculo de la casa.
-            // Solo necesitamos eliminar la referencia del target
-            // La eliminación del objeto 'target' se maneja abajo en obstaculosCasa.
-        }
-    }
+    // No eliminamos los objetos de la lista targets aquí si ya están en obstaculosCasa.
+    // La lista targets solo se limpia. La destrucción del objeto se hace abajo.
     targets.clear(); // Limpiar la lista de targets
 
 

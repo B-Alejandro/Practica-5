@@ -54,38 +54,14 @@ Proyectil::~Proyectil()
     qDebug() << ">>> Proyectil DESTRUCTOR llamado" << static_cast<void*>(this);
 }
 
-// NUEVA FUNCIÓN: Calcula la magnitud del vector velocidad actual
-double Proyectil::getVelocidadActual() const
-{
-    // Magnitud del vector: ||v|| = sqrt(vx^2 + vy^2)
-    return qSqrt(velocidadX * velocidadX + velocidadY * velocidadY);
-}
-
-// MODIFICACIÓN: El daño depende de la velocidad actual
 int Proyectil::calcularDano() const
 {
-    double velocidad = getVelocidadActual();
-    int danoBase = 1;
-
-    // Escalar el daño basado en la velocidad (ejemplo: cada 10 unidades de velocidad base, +1 daño)
-    // El v0 inicial está multiplicado por 3, por lo que una velocidad de 20 (base) * 3 = 60
-    // Usamos una función que crece con la velocidad.
-    // Dano = 1 + floor(Velocidad / Factor_Escala)
-    const double FACTOR_ESCALA = 10.0;
-    int danoCalculado = danoBase + qFloor(velocidad / FACTOR_ESCALA);
-
-    // Limitar el daño máximo a un valor razonable (ej. 5 o 6)
-    const int MAX_DANO = 6;
-    if (danoCalculado > MAX_DANO)
-        danoCalculado = MAX_DANO;
-
-    qDebug() << ">>> Velocidad actual para daño:" << velocidad << "Daño calculado:" << danoCalculado;
-    return danoCalculado;
+    return 1;
 }
 
 void Proyectil::procesarRebote()
 {
-    // ... (Resto de la función sin cambios)
+    qDebug() << ">>> Rebote! Rebotes restantes:" << rebotesRestantes;
 
     rebotesRestantes--;
 
@@ -116,7 +92,6 @@ void Proyectil::procesarRebote()
 
 void Proyectil::detenerYDestruir()
 {
-    // ... (Resto de la función sin cambios)
     qDebug() << ">>> detenerYDestruir llamado, destruyendo:" << destruyendo;
 
     if (destruyendo)
@@ -157,7 +132,6 @@ void Proyectil::detenerYDestruir()
 
 void Proyectil::actualizar()
 {
-    // ... (Resto de la función sin cambios)
     if (destruyendo || eventoEmitido)
         return;
 
@@ -188,7 +162,7 @@ void Proyectil::actualizar()
         procesarRebote();
         return;
     }
-    // ... (Resto de la lógica de rebote en paredes y techo)
+
     // REBOTE EN PAREDES
     if (x <= 10 && velocidadX < 0)  // Ajustado por el radio del proyectil
     {
@@ -264,18 +238,19 @@ void Proyectil::actualizar()
             qDebug() << ">>> Colisión detectada con obstáculo";
             impacto = true;
 
-            int d = calcularDano(); // El daño ahora depende de la velocidad
+            int d = calcularDano();
             o->recibirDano(d);
             qDebug() << ">>> Daño aplicado:" << d << "Vida restante:" << o->obtenerVida();
 
             if (o->obtenerVida() <= 0)
             {
-                qDebug() << ">>> Obstáculo destruido por falta de vida";
+                qDebug() << ">>> Obstáculo destruido por falta de vida. Removiendo de escena.";
                 QGraphicsScene* escenaObs = o->scene();
                 if (escenaObs)
                 {
+                    // [CORRECCIÓN APLICADA]: Solo se remueve de la escena.
+                    // La clase Juego se encarga de eliminar el objeto (delete) al reiniciar.
                     escenaObs->removeItem(o);
-                    delete o;
                 }
             }
 
