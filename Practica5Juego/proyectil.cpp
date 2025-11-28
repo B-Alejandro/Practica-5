@@ -1,40 +1,52 @@
 #include "proyectil.h"
 #include "obstaculo.h"
+#include "jugador.h"
 #include <QtMath>
 #include <QGraphicsScene>
 #include <QBrush>
 #include <QDebug>
 
-Proyectil::Proyectil(double x0, double y0, double velocidad, double angulo, double gravedad)
+Proyectil::Proyectil(double x0, double y0, double velocidad, double angulo, int jugadorPropietario, double gravedad)
     : QObject()
-    , QGraphicsEllipseItem(-5, -5, 10, 10)
+    , QGraphicsEllipseItem(-10, -10, 20, 20)
     , rebotesRestantes(3)
 {
     qDebug() << ">>> Proyectil CONSTRUCTOR iniciado";
 
     xInicial = x0;
     yInicial = y0;
-    v0 = velocidad;
+    v0 = velocidad * 3;
     g = gravedad;
     tiempo = 0.0;
     impacto = false;
     destruyendo = false;
     eventoEmitido = false;
+    jugadorOwner = jugadorPropietario;
 
     angRad = qDegreesToRadians(angulo);
 
-    // Calcular velocidades iniciales basadas en v0 y ángulo
+    // Calcular velocidades iniciales
     velocidadX = v0 * qCos(angRad);
-    velocidadY = v0 * qSin(angRad);
+    velocidadY = -v0 * qSin(angRad);
 
-    setBrush(QBrush(Qt::black));
+    // ********************************************
+    // *** CÓDIGO MEJORADO PARA LA APARIENCIA ***
+    // ********************************************
+    QRadialGradient gradiente(0, 0, 10, 3, 3); // Centro: (3, 3), Radio: 10 (coordenadas locales)
+    gradiente.setColorAt(0, QColor(100, 100, 100)); // Brillo
+    gradiente.setColorAt(0.5, QColor(50, 50, 50));
+    gradiente.setColorAt(1, QColor(10, 10, 10));// Sombra
+       setBrush(QBrush(gradiente));
+    setPen(QPen(Qt::darkGray, 1)); // Borde sutil
+    // ********************************************
+
     setPos(xInicial, yInicial);
 
     timer = new QTimer(this);
     connect(timer, &QTimer::timeout, this, &Proyectil::actualizar);
     timer->start(16);
 
-    qDebug() << ">>> Proyectil CONSTRUCTOR completado" << static_cast<void*>(this);
+    qDebug() << ">>> Proyectil creado. Velocidad real:" << v0 << "Ángulo:" << angulo;
 }
 
 Proyectil::~Proyectil()
@@ -53,7 +65,6 @@ void Proyectil::procesarRebote()
 
     rebotesRestantes--;
 
-    // El segundo rebote (rebotesRestantes == 1) se cuenta como fallo
     if (rebotesRestantes == 1)
     {
         qDebug() << ">>> Segundo rebote detectado - Contando como fallo";
@@ -65,13 +76,9 @@ void Proyectil::procesarRebote()
         return;
     }
 
-    // Invertir velocidad Y (rebote vertical) con pérdida de energía
     velocidadY = -velocidadY * 0.7;
-
-    // Reducir velocidad X por fricción
     velocidadX *= 0.85;
 
-    // Si no hay más rebotes, detener
     if (rebotesRestantes <= 0)
     {
         qDebug() << ">>> Sin rebotes restantes, deteniendo";
@@ -102,7 +109,6 @@ void Proyectil::detenerYDestruir()
             timer->stop();
     }
 
-    // Emitir señal de finalización
     if (!eventoEmitido)
     {
         qDebug() << ">>> Emitiendo proyectilFinalizado";
@@ -110,7 +116,6 @@ void Proyectil::detenerYDestruir()
         emit proyectilFinalizado();
     }
 
-    // Programar eliminación
     qDebug() << ">>> Programando eliminación del proyectil";
     QTimer::singleShot(0, this, [this]() {
         qDebug() << ">>> Lambda de eliminación ejecutándose";
@@ -140,50 +145,48 @@ void Proyectil::actualizar()
 
     tiempo += 0.016;
 
-    // Aplicar gravedad a la velocidad Y
     velocidadY += g * 0.016;
 
-    // Calcular nueva posición
-    double x = pos().x() + velocidadX;
-    double y = pos().y() + velocidadY;
+    double x = pos().x() + velocidadX * 0.016;  // Multiplicar por dt
+    double y = pos().y() + velocidadY * 0.016;  // Multiplicar por dt
 
     double anchoEscena = escena->width();
     double altoEscena = escena->height();
+    double sueloY = altoEscena * 0.9;
 
-    // REBOTE EN SUELO (Y = 550)
-    if (y >= 550 && velocidadY > 0)
+    // REBOTE EN SUELO
+    if (y >= sueloY - 10 && velocidadY > 0)  // Ajustado a -10 por el tamaño del proyectil
     {
-        qDebug() << ">>> Rebote en suelo detectado";
-        setPos(x, 550);
+        qDebug() << ">>> Rebote en suelo detectado en Y:" << y << "SueloY:" << sueloY;
+        setPos(x, sueloY - 10);
         procesarRebote();
         return;
     }
 
     // REBOTE EN PAREDES
-    if (x <= 0 && velocidadX < 0)
+    if (x <= 10 && velocidadX < 0)  // Ajustado por el radio del proyectil
     {
         qDebug() << ">>> Rebote en pared izquierda";
         velocidadX = -velocidadX * 0.8;
-        x = 0;
+        x = 10;
     }
-    else if (x >= anchoEscena && velocidadX > 0)
+    else if (x >= anchoEscena - 10 && velocidadX > 0)  // Ajustado por el radio del proyectil
     {
         qDebug() << ">>> Rebote en pared derecha";
         velocidadX = -velocidadX * 0.8;
-        x = anchoEscena;
+        x = anchoEscena - 10;
     }
 
     // REBOTE EN TECHO
-    if (y <= 0 && velocidadY < 0)
+    if (y <= 10 && velocidadY < 0)  // Ajustado por el radio del proyectil
     {
         qDebug() << ">>> Rebote en techo";
         velocidadY = -velocidadY * 0.8;
-        y = 0;
+        y = 10;
     }
 
     setPos(x, y);
 
-    // Verificar si sale de la escena
     if (x > anchoEscena + 100 || y > altoEscena + 100 || x < -100 || y < -100)
     {
         qDebug() << ">>> Proyectil fuera de escena en pos:" << x << y;
@@ -195,7 +198,7 @@ void Proyectil::actualizar()
         return;
     }
 
-    // Detección de colisión con obstáculos
+    // Detección de colisión - MEJORADA
     QList<QGraphicsItem*> colisiones = collidingItems();
 
     for (QGraphicsItem *item : colisiones)
@@ -203,6 +206,32 @@ void Proyectil::actualizar()
         if (!item)
             continue;
 
+        // Verificar colisión con jugadores
+        Jugador *jugador = dynamic_cast<Jugador*>(item);
+        if (jugador && !impacto)
+        {
+            int jugadorGolpeadoNum = jugador->getNumeroJugador();
+
+            qDebug() << ">>> Colisión detectada con jugador" << jugadorGolpeadoNum;
+
+            // No golpear al jugador que disparó
+            if (jugadorGolpeadoNum != jugadorOwner || rebotesRestantes < 3)
+            {
+                impacto = true;
+
+                if (!eventoEmitido)
+                {
+                    eventoEmitido = true;
+                    emit jugadorGolpeado(jugadorGolpeadoNum);
+                    emit impactoDetectado(true);
+                }
+
+                detenerYDestruir();
+                return;
+            }
+        }
+
+        // Verificar colisión con obstáculos
         Obstaculo *o = dynamic_cast<Obstaculo*>(item);
         if (o && !impacto)
         {
@@ -216,7 +245,6 @@ void Proyectil::actualizar()
             if (o->obtenerVida() <= 0)
             {
                 qDebug() << ">>> Obstáculo destruido por falta de vida";
-                o->setBrush(QBrush(QColor(50, 50, 50)));
                 QGraphicsScene* escenaObs = o->scene();
                 if (escenaObs)
                 {

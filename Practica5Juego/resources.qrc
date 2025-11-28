@@ -1,5 +1,7 @@
 <RCC>
-    <qresource prefix="/img">
-        <file>Tanques.png</file>
+    <qresource prefix="/img"/>
+    <qresource prefix="/">
+        <file>Recursos/Objetos/Canno.png</file>
+        <file>Recursos/Fondos/Background.jpg</file>
     </qresource>
 </RCC>
