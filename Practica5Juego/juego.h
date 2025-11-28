@@ -22,6 +22,7 @@ public:
     QGraphicsScene* obtenerEscena() const;
     void actualizarPanel(double angulo, double velocidad);
     int getJugadorActual() const { return jugadorActual; }
+    qreal getSueloY() const; // Nueva función para obtener la posición Y del suelo
 
 public slots:
     void onImpactoProyectil(bool acerto);
@@ -60,6 +61,10 @@ private:
     int fallosJ1;
     int fallosJ2;
     bool turnoEnProceso;
+
+    // Variables para el suelo
+    qreal sueloY;
+    qreal alturaSuelo;
 
     void crearCasa();
     void registrarImpacto(bool acerto);
